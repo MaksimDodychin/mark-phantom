@@ -144,7 +144,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#1b2138">
-  <script>window.__APP_VER = "d994ce6282";</script>
+  <script>window.__APP_VER = "05bcea74bb";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -222,8 +222,8 @@
 
 <!-- ВЫБОР ЭТАПА -->
 <div class="screen hidden" id="stages">
-  <h1 style="font-size:clamp(20px,4.4vw,34px)">🎬 ЭТАПЫ</h1>
-  <div class="sub">Пройденный этап можно пройти заново — хоть сто раз</div>
+  <h1 style="font-size:clamp(20px,4.4vw,34px)" id="stagesTitle">🌍 ВЫБЕРИ МИР</h1>
+  <div class="sub" id="stagesHint">Сначала мир, потом этап</div>
   <div class="grid g3" id="stagesGrid"></div>
   <button class="btn" id="stagesBack">НАЗАД</button>
 </div>
@@ -271,6 +271,7 @@
   <button class="abtn" id="blowBtn" data-cap="ВЫДУВ">💨</button>
   <button class="abtn" id="shootBtn" data-cap="ВЫСТРЕЛ">🎯</button>
   <button class="abtn" id="useBtn" data-cap="ВЗЯТЬ">✋</button>
+  <button class="abtn" id="diveBtn" data-cap="НЫРЯТЬ">🤿</button>
 </div>
 
 <script>
@@ -345,19 +346,46 @@ const GHOST_INFO = {
   fantom:  { emoji:'👤', text:'То появляется, то истаивает почти в ничто. Быстрый и злой. Носит фамилию хозяев дома — совпадение ли?' },
   polter:  { emoji:'🌀', text:'Полтергейст. Поднимает в воздух мебель и метает её в тебя. Самый шумный жилец поместья.' },
 };
-const STAGES = [
-  { id:'sad',    name:'🌳 Сад',     desc:'Догнать мышь с ключом' },
-  { id:'garazh', name:'🔧 Гараж',   desc:'Найти ВИХРЬ-3000' },
-  { id:'holl',   name:'🏛 Холл',    desc:'Первые призраки и обыск мебели' },
-  { id:'kuhnya', name:'🍳 Кухня',   desc:'За запертой дверью' },
-  { id:'basseyn',name:'🏊 Бассейн',  desc:'Нырять и искать на дне' },
-  { id:'lib',    name:'📚 Библиотека', desc:'Шелест и телекинез', soon:true },
-  { id:'spektr', name:'🔦 Спектр',  desc:'Фонарик против невидимок', soon:true },
-  { id:'mouse',  name:'🐭 Мышиная облава', desc:'Переловить всех', soon:true },
-  { id:'araxno', name:'🕷 Арахнофобия', desc:'Подвал. Мохноног', soon:true },
-  { id:'sport',  name:'🏀 Спортивный участок', desc:'Бейсбол, баскетбол, футбол, мини-гольф', soon:true },
-  { id:'oranj',  name:'🌺 Оранжерея', desc:'Мухоловка Зевака', soon:true },
+const МИРЫ = [
+  { id:'manor', name:'🏚 Поместье Фантомовых', desc:'Сад, гараж, холл, кухня и дальше вглубь дома',
+    stages:[
+      { id:'sad',    name:'🌳 Сад',        desc:'Догнать мышь с ключом' },
+      { id:'garazh', name:'🔧 Гараж',      desc:'Найти ВИХРЬ-3000. Тут живут Тихони' },
+      { id:'holl',   name:'🏛 Холл',       desc:'Обыск мебели, поиск ключей' },
+      { id:'kuhnya', name:'🍳 Кухня',      desc:'Впервые Буян и Домосед' },
+      { id:'mech',   name:'⚙️ Механизм',   desc:'Собрать механизм в холле', soon:true },
+      { id:'lib',    name:'📚 Библиотека', desc:'Шелест и Полтергейст', soon:true },
+      { id:'spektr', name:'🔦 Спектр',     desc:'Фонарик против невидимок', soon:true },
+      { id:'mouse',  name:'🐭 Мышиная облава', desc:'Переловить всех', soon:true },
+      { id:'araxno', name:'🕷 Арахнофобия', desc:'Подвал. Мохноног', soon:true },
+    ] },
+  { id:'pool', name:'🏊 Бассейн', desc:'Сюда Фантомовы ходили купаться',
+    stages:[
+      { id:'basseyn', name:'🤿 Нырок',      desc:'Найти на дне синие кристаллы' },
+      { id:'nasos',   name:'🔧 Насос',      desc:'Очистить мутную воду', soon:true },
+      { id:'razdev',  name:'🧺 Раздевалка', desc:'Призраки в шкафчиках', soon:true },
+      { id:'noch',    name:'🌙 Ночной заплыв', desc:'Свет погас — ловля в темноте', soon:true },
+    ] },
+  { id:'sport', name:'🏀 Спортивный участок', desc:'Бейсбол, баскетбол, футбол, мини-гольф',
+    stages:[
+      { id:'sp1', name:'🧺 Раздевалка',  desc:'Найти инвентарь и включить свет', soon:true },
+      { id:'sp2', name:'🏀 Баскетбол',   desc:'Забросить мяч с призраком в кольцо', soon:true },
+      { id:'sp3', name:'⚽ Футбол',      desc:'Обыграть вратаря-призрака', soon:true },
+      { id:'sp4', name:'⛳ Мини-гольф',  desc:'Загнать шар в лунку выдувом', soon:true },
+      { id:'sp5', name:'🎳 Боулинг — БОСС', desc:'Страйк — призрак вылетает!', soon:true },
+    ] },
+  { id:'oranj', name:'🌺 Оранжерея', desc:'Заросшие цветы Фантомовых',
+    stages:[
+      { id:'or1', name:'🔧 Насос и водопровод', desc:'Оживить растения', soon:true },
+      { id:'or2', name:'🔑 Ключи от ворот',     desc:'Их растащили Домоседы', soon:true },
+      { id:'or3', name:'🌙 Ночь в оранжерее',   desc:'Три средних босса', soon:true },
+      { id:'or4', name:'🌿 Теплица-лабиринт',   desc:'Подрезать лианы выдувом', soon:true },
+      { id:'or5', name:'🌺 Зевака — БОСС',      desc:'Мухоловка бьёт головой', soon:true },
+    ] },
+  { id:'sosed', name:'🏰 Дом Призраковых', desc:'Соседний особняк. Красивее и страшнее',
+    stages:[ { id:'so1', name:'🚪 Порог', desc:'Сюда мы ещё дойдём', soon:true } ] },
 ];
+const STAGES = МИРЫ.flatMap(m => m.stages);
 
 const SAVE_KEY = 'phantom_saves_v1';
 function blankSave() { return { used:false, diff:'normal', gems:0, seen:{}, up:{}, stages:{} }; }
@@ -1177,7 +1205,7 @@ function tearWeb(w) {
   if (w.torn) return;
   w.torn = true; world.remove(w.mesh);
   Snd.noise(0.4, 0.1, 2400, 2);
-  addCrystal('osobnyak', w.x, w.z, Math.max(0.9, w.y - 0.6));
+  addCrystal('osobnyak', w.x, w.z, 1.0);      // падает на пол, а не висит под потолком
   bigMsg('🕸 ПАУТИНА СОРВАНА — там кристалл!', 1.8, '#a855f7');
 }
 let crystals = [];
@@ -1204,7 +1232,19 @@ function updateCrystals(dt) {
     if (c.taken) continue;
     c.body.rotation.y += dt*1.5; c.body.rotation.x += dt*0.6;
     c.mesh.position.y = c.y + Math.sin(time*2 + c.x)*0.14;
-    if (Math.hypot(c.x-player.x, c.mesh.position.y-player.y, c.z-player.z) < 1.7) {
+    // 🌀 луч притягивает кристалл: наводишь пылесос — и он летит к тебе в трубу
+    if (mode === 'suck' && tool === 'vac') {
+      const w2 = inBeam(c.x, c.mesh.position.y, c.z);
+      if (w2 > 0) {
+        const dx = player.x-c.x, dz = player.z-c.z, dy = (player.y-0.4)-c.mesh.position.y;
+        const d = Math.hypot(dx, dy, dz) || 1;
+        c.x += dx/d * 9 * dt; c.z += dz/d * 9 * dt; c.y += dy/d * 9 * dt;
+        c.mesh.position.set(c.x, c.y, c.z);
+      }
+    }
+    // радиус подбора щедрый: ребёнок не должен ловить кристалл миллиметрами
+    if (Math.hypot(c.x-player.x, c.z-player.z) < 2.2 &&
+        Math.abs(c.mesh.position.y - player.y) < 2.4) {
       c.taken = true; world.remove(c.mesh); gems++; save.gems++; saveNow();
       Snd.tone(1046, 0.16, 'triangle', 0.24); setTimeout(() => Snd.tone(1568, 0.3, 'triangle', 0.2), 110);
       bigMsg('💎 КРИСТАЛЛ: ' + c.info.name, 1.6, '#' + c.info.color.toString(16).padStart(6, '0'));
@@ -1421,7 +1461,7 @@ addEventListener('mousemove', e => {
 addEventListener('mousedown', e => {
   if (state !== 'play') return;
   if (e.button === 0) { if (!tool) { interact(); return; } mode = 'suck'; }
-  if (e.button === 2) mode = 'blow';
+  if (e.button === 2) { if (held.length) { shootHeld(); return; } mode = 'blow'; }
 });
 addEventListener('mouseup', e => {
   if (e.button === 0 && mode === 'suck') releaseSuck();
@@ -1472,9 +1512,12 @@ function bindHold(id, on, off) {
   b.addEventListener('mouseup', () => { b.classList.remove('press'); off && off(); });
 }
 bindHold('suckBtn', () => { if (state === 'play') mode = 'suck'; }, () => { if (mode === 'suck') releaseSuck(); });
-bindHold('blowBtn', () => { if (state === 'play') mode = 'blow'; }, () => { if (mode === 'blow') mode = null; });
+bindHold('blowBtn', () => { if (state !== 'play') return;
+  if (held.length) { shootHeld(); return; }        // в трубе предмет — выдув им и выстрелит
+  mode = 'blow'; }, () => { if (mode === 'blow') mode = null; });
 bindHold('shootBtn', () => shootHeld());
-bindHold('useBtn', () => { diveHeld = true; interact(); }, () => { diveHeld = false; });
+bindHold('useBtn', () => interact());
+bindHold('diveBtn', () => { diveHeld = true; }, () => { diveHeld = false; });
 
 /* ══ ЭКРАНЫ МЕНЮ ══════════════════════════════════════════════════ */
 function showScreen(id) {
@@ -1553,9 +1596,27 @@ function renderShop() {
     g.appendChild(el);
   });
 }
+let мирВыбран = null;
 function renderStages() {
   const g = $('stagesGrid'); g.innerHTML = '';
-  STAGES.forEach(st => {
+  if (!мирВыбран) {                                   // сначала выбираем МИР
+    $('stagesTitle').textContent = '🌍 ВЫБЕРИ МИР';
+    $('stagesHint').textContent = 'Бассейн, спортучасток и оранжерея — отдельные миры, у каждого свои этапы';
+    МИРЫ.forEach(m => {
+      const готово = m.stages.filter(x => !x.soon).length;
+      const пройдено = m.stages.filter(x => save.stages[x.id]).length;
+      const el = document.createElement('div');
+      el.className = 'tile' + (готово ? '' : ' lock');
+      el.innerHTML = '<h3>' + m.name + '</h3><p>' + m.desc + '</p><span class="pill">' +
+        (готово ? 'этапов готово ' + готово + ' · пройдено ' + пройдено : 'скоро') + '</span>';
+      if (готово) el.onclick = () => { мирВыбран = m; renderStages(); };
+      g.appendChild(el);
+    });
+    return;
+  }
+  $('stagesTitle').textContent = мирВыбран.name;
+  $('stagesHint').textContent = 'Пройденный этап можно проходить заново — хоть сто раз';
+  мирВыбран.stages.forEach(st => {
     const пройден = !!save.stages[st.id];
     const закрыт = st.soon || (!пройден && st.id !== 'sad');
     const el = document.createElement('div');
@@ -1566,6 +1627,10 @@ function renderStages() {
     if (!закрыт) el.onclick = () => startGame(st.id);
     g.appendChild(el);
   });
+  const назад = document.createElement('div');
+  назад.className = 'tile'; назад.innerHTML = '<h3>⬅️ К мирам</h3><p>Выбрать другой мир</p>';
+  назад.onclick = () => { мирВыбран = null; renderStages(); };
+  g.appendChild(назад);
 }
 
 $('filesBtn').onclick = () => { renderFiles(); showScreen('files'); };
@@ -1578,7 +1643,7 @@ $('vaultBtn').onclick = () => { renderVault(); showScreen('vault'); };
 $('vaultBack').onclick = () => showScreen('menu');
 $('shopBtn').onclick = () => { renderShop(); showScreen('shop'); };
 $('shopBack').onclick = () => showScreen('menu');
-$('stagesBtn').onclick = () => { renderStages(); showScreen('stages'); };
+$('stagesBtn').onclick = () => { мирВыбран = null; renderStages(); showScreen('stages'); };
 $('stagesBack').onclick = () => showScreen('menu');
 
 $('playBtn').onclick = () => startGame();
@@ -1700,32 +1765,41 @@ function interact() {
   }
 }
 
-function spawnPoolGhosts() {
+function spawnPoolGhosts() {                       // 🏊 БАССЕЙН: сюда приходит Фантом
   spawnGhost('tihonya', 20, -34);
   spawnGhost('domosed', 16, -28);
-  setTimeout(() => { if (state === 'play') spawnGhost('buyan', 24, -44); }, 7000);
+  новыйВид('buyan', 24, -44, 7000);
+  новыйВид('fantom', 20, -40, 15000);
   // 🔵 то, что надо искать на дне
   addCrystal('basseyn', 17, -35, POOL.дно + 0.9);
   addCrystal('basseyn', 25, -41, POOL.дно + 0.9);
   addCrystal('basseyn', 21, -44, POOL.дно + 0.9);
   addCrystal('basseyn', 15.5, -44.5, POOL.дно + 0.9);
 }
-function spawnKitchenGhosts() {
-  spawnGhost('buyan', 20, -10);
-  spawnGhost('domosed', 24, -14);
+function spawnKitchenGhosts() {                    // 🍳 КУХНЯ: тут впервые кусаются
+  новыйВид('buyan', 20, -10, 600);
+  новыйВид('domosed', 24, -14, 4200);
   addCrystal('kuhnya', 22, -8, 1.0);
 }
 
-function spawnHouseGhosts() {
+/* 👻 РАССЕЛЕНИЕ ПО ЭТАПАМ (правило Марка 22.08): в каждом новом этапе — новый вид призрака,
+   а не все сразу. Гараж — только Тихоня; кухня — Буян и Домосед; бассейн — ещё и Фантом;
+   Полтергейст ждёт своего этапа в библиотеке. */
+function новыйВид(kind, x, z, задержка) {
+  setTimeout(() => {
+    if (state !== 'play') return;
+    const первый = !(save.seen[kind] | 0) && !ghosts.some(g => g.alive && g.kind === kind);
+    const g = spawnGhost(kind, x, z);
+    if (первый) {
+      bigMsg('👻 НОВЫЙ ПРИЗРАК: ' + g.info.name.toUpperCase(), 2.2, '#' + g.info.color.toString(16));
+      Snd.ghostMoan();
+    }
+  }, задержка || 0);
+}
+function spawnHouseGhosts() {                      // 🔧 ГАРАЖ: знакомимся на безобидных
   spawnGhost('tihonya', -22, -12);
   spawnGhost('tihonya', -19, 0);
-  setTimeout(() => { if (state === 'play') { spawnGhost('buyan', -3, -14);
-    bigMsg('🔴 БУЯН!', 1.6, '#fca5a5'); Snd.ghostMoan(); } }, 9000);
-  setTimeout(() => { if (state === 'play') spawnGhost('domosed', 6, -17); }, 16000);
-  setTimeout(() => { if (state === 'play') { spawnGhost('polter', -6, -20);
-    bigMsg('🌀 ПОЛТЕРГЕЙСТ В ХОЛЛЕ!', 1.8, '#c4b5fd'); Snd.ghostMoan(); } }, 26000);
-  setTimeout(() => { if (state === 'play') { spawnGhost('fantom', 2, -8);
-    bigMsg('👤 ФАНТОМ…', 1.8, '#e9e7ff'); Snd.ghostMoan(); } }, 38000);
+  новыйВид('tihonya', -25, -16, 8000);
 }
 
 /* ── стрельба застрявшим предметом ─────────────────────────────────── */
@@ -1735,9 +1809,11 @@ function shootHeld() {
   const dir = forward();
   const m = heldObj.mesh;
   m.visible = true;
-  m.position.set(player.x + dir.x*0.9, player.y - 0.2, player.z + dir.z*0.9);
+  m.position.set(player.x + dir.x*2.0, player.y - 0.15 + dir.y*2.0, player.z + dir.z*2.0);
   shots.push({ mesh:m, prop:heldObj, x:m.position.x, y:m.position.y, z:m.position.z,
                vx:dir.x*26, vy:dir.y*26 + 1.5, vz:dir.z*26, t:0 });
+  for (let i = 0; i < 10; i++) puff(m.position.x, m.position.y, m.position.z, 0xfde68a);
+  if (vmBrush) vmBrush.position.z += 0.06;              // отдача щётки
   Snd.tone(300, 0.18, 'square', 0.22, 90); Snd.noise(0.16, 0.16, 700, 1);
   bigMsg('🎯 ' + heldObj.label.toUpperCase() + ' ПОШЁЛ!', 0.9, '#fde68a');
   updateHud();
@@ -1789,14 +1865,18 @@ function catchGhost(gh) {
   for (let i = 0; i < 20; i++) puff(gh.x, gh.y, gh.z, gh.info.color);
   if (gh.inProp) { gh.inProp.possessedBy = null; gh.inProp = null; }
   updateHud();
+  // ⚠️ Раньше здесь игра ОБЪЯВЛЯЛА ФИНАЛ, едва кончались призраки в комнате, — и всё
+  // дальше (обыск, двери, труба) молча переставало работать. Теперь просто хвалим и подсказываем.
   const left = ghosts.filter(g => g.alive).length;
   if (left === 0 && stage >= 1) {
     setTimeout(() => {
       if (state !== 'play') return;
-      gameOver('🏆 ПЕРВАЯ ЧАСТЬ ПРОЙДЕНА', 'Сад и гараж вычищены, ' + caught +
-        ' призраков в трубе. Дальше — механизм в холле, библиотека, Спектр, мышиная облава ' +
-        'и подвал с Мохноногом.', '🏆');
-    }, 2200);
+      const дальше = !bag.kitchen ? 'Обыщи мебель в холле — где-то ключ от кухни'
+                   : !bag.pool    ? 'Обыщи кухню — там ключ от бассейна'
+                                  : 'Ныряй в бассейн: на дне синие кристаллы';
+      bigMsg('✨ ЗДЕСЬ ЧИСТО!\n' + дальше, 3.0, '#86efac');
+      hint(дальше);
+    }, 1800);
   }
 }
 
@@ -2013,7 +2093,7 @@ function updateBeam(dt) {
       const w = walls.find(w2 => w2.x1 === p.x-p.w/2 && w2.z1 === p.z);
       if (w) { w.x1 = w.x2 = 99; w.z1 = w.z2 = 99; }
       Snd.tone(420, 0.3, 'sawtooth', 0.2, 900);
-      bigMsg('🪑 ' + p.label.toUpperCase() + ' ЗАСТРЯЛ В ТРУБЕ!\nF — выстрелить', 2, '#fde68a');
+      bigMsg('🪑 ' + p.label.toUpperCase() + ' ЗАСТРЯЛ В ТРУБЕ!\n💨 ВЫДУВ — выстрелить (или F)', 2.4, '#fde68a');
       updateHud();
     }
   }
@@ -2300,6 +2380,8 @@ window.__dbg = {
                        вВоде:inPool(player.x, player.z), воздух:+breath.toFixed(2) }; },
   toPool(){ player.x = 20; player.z = -38; player.dive = 0; return true; },
   diveHold(on){ diveHeld = !!on; return diveHeld; },
+  toCrystal(i){ const c = crystals.filter(x => !x.taken)[i||0]; if (!c) return null;
+            player.x = c.x + 4; player.z = c.z + 4; this.look(c.x, c.z, c.y); return true; },
   toWeb(i){ const w = webs.filter(x => !x.torn)[i||0]; if (!w) return null;
             player.x = w.x; player.z = w.z + 2.2; this.look(w.x, w.z, w.y); return true; },
   toMouseAny(){ const m = mice.find(m2 => m2.alive); if (!m) return null;
