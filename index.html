@@ -144,7 +144,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#1b2138">
-  <script>window.__APP_VER = "cc46b38688";</script>
+  <script>window.__APP_VER = "fa09021437";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -512,6 +512,28 @@ function buildViewModel() {
   viewModel = g;
   const св = new THREE.PointLight(0xffffff, 0.9, 2.2); св.position.set(0.15, -0.1, -0.5); camera.add(св);
 }
+/* 🪑 засосанный предмет прилипает к щётке и трясётся — Марк просил его видеть */
+function attachToBrush(p) {
+  if (!vmBrush) return;
+  p.mesh.userData.масштаб = p.mesh.scale.clone();
+  const k = 0.17 / Math.max(p.w, p.h, p.d, 0.3);
+  p.mesh.scale.setScalar(k);
+  p.mesh.visible = true;
+  vmBrush.add(p.mesh);
+  раскладкаЩётки();
+}
+function detachFromBrush(p) {
+  if (vmBrush) vmBrush.remove(p.mesh);
+  const с = p.mesh.userData.масштаб;
+  p.mesh.scale.copy(с || new THREE.Vector3(1, 1, 1));
+  world.add(p.mesh);
+  раскладкаЩётки();
+}
+function раскладкаЩётки() {                        // два предмета не должны налезать друг на друга
+  held.forEach((p, i) => {
+    p.mesh.position.set(held.length > 1 ? (i ? 0.075 : -0.075) : 0, -0.015, -0.13);
+  });
+}
 function updateViewModel(dt, шаг) {
   if (!viewModel) return;
   viewModel.visible = !!tool && state === 'play';
@@ -531,6 +553,11 @@ function updateViewModel(dt, шаг) {
   зев.material.emissiveIntensity += (((сосёт||дует) ? 2.4 : 0) - зев.material.emissiveIntensity) * Math.min(1, dt*10);
   // воздуходувка выглядит иначе: без мешка
   vmBag.visible = tool === 'vac';
+  // засосанное трясётся на щётке
+  held.forEach((p, i) => {
+    p.mesh.rotation.set(0.35 + Math.sin(time*9 + i)*0.12, time*1.2 + i, Math.sin(time*7 + i)*0.14);
+    p.mesh.position.y = -0.015 + Math.sin(time*24 + i)*0.006;
+  });
 }
 
 addEventListener('resize', () => {
@@ -868,7 +895,7 @@ function updateHud() {
   const кл = [hasKey ? 'парадный' : null, bag.kitchen ? 'кухня' : null,
               bag.pool ? 'бассейн' : null, bag.lib ? 'библиотека' : null].filter(Boolean);
   $('keyCard').textContent = '🔑 ' + (кл.length ? кл.join(', ') : '—');
-  $('toolCard').textContent = tool === 'vac' ? '🌀 ВИХРЬ-3000' + (held.length ? ' · в трубе: ' + held.map(h => h.label).join(', ') : '')
+  $('toolCard').textContent = tool === 'vac' ? '🌀 ВИХРЬ-3000' + (held.length ? ' · на щётке: ' + held.map(h => h.label).join(', ') : '')
                             : tool === 'blower' ? '🍃 воздуходувка (только выдув)'
                             : 'руки пустые';
   $('taskCard').textContent = task;
@@ -2214,6 +2241,7 @@ function spawnHouseGhosts() {                      // 🔧 ГАРАЖ: знак�
 function shootHeld() {
   if (state !== 'play' || !held.length) return;
   const heldObj = held.shift();
+  detachFromBrush(heldObj);
   const dir = forward();
   const m = heldObj.mesh;
   m.visible = true;
@@ -2561,12 +2589,13 @@ function updateBeam(dt) {
     p.shake = 0.6;
     p.suckT = (p.suckT || 0) + dt;
     if (p.suckT > 0.55) {
-      p.inNozzle = true; p.mesh.visible = false; held.push(p);
+      p.inNozzle = true; held.push(p); attachToBrush(p);
       p.suckT = 0;
       const w = walls.find(w2 => w2.x1 === p.x-p.w/2 && w2.z1 === p.z);
       if (w) { w.x1 = w.x2 = 99; w.z1 = w.z2 = 99; }
       Snd.tone(420, 0.3, 'sawtooth', 0.2, 900);
-      bigMsg('🪑 ' + p.label.toUpperCase() + ' ЗАСТРЯЛ В ТРУБЕ!\n💨 ВЫДУВ — выстрелить (или F)', 2.4, '#fde68a');
+      // фраза без рода: «бочка застрял» звучало криво
+      bigMsg('🪑 НА ЩЁТКЕ: ' + p.label.toUpperCase() + '\n💨 ВЫДУВ — выстрелить (или F)', 2.4, '#fde68a');
       updateHud();
     }
   }
@@ -2640,7 +2669,7 @@ function updateGhosts(dt) {
       if (gh.throwCd <= 0 && d < 16) {
         gh.throwCd = rnd(4, 8);
         const near = props.filter(p => p.big && !p.possessedBy && !p.inNozzle &&
-                                  Math.hypot(p.x-gh.x, p.z-gh.z) < 9);
+                                  !held.includes(p) && Math.hypot(p.x-gh.x, p.z-gh.z) < 9);
         if (near.length) {
           const p = near[Math.floor(Math.random()*near.length)];
           const dx2 = player.x-p.x, dz2 = player.z-p.z, d2 = Math.hypot(dx2, dz2) || 1;
