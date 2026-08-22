@@ -144,7 +144,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#1b2138">
-  <script>window.__APP_VER = "d95677767c";</script>
+  <script>window.__APP_VER = "aa96464196";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -2985,7 +2985,8 @@ window.__dbg = {
             player.x = c.x + 4; player.z = c.z + 4; this.look(c.x, c.z, c.y); return true; },
   toWeb(i){ const w = webs.filter(x => !x.torn)[i||0]; if (!w) return null;
             player.x = w.x; player.z = w.z + 2.2; this.look(w.x, w.z, w.y); return true; },
-  toMouseAny(){ const m = mice.find(m2 => m2.alive); if (!m) return null;
+  toMouseAny(){ const m = mice.find(m2 => m2.alive && !m2.withKey) || mice.find(m2 => m2.alive);
+                if (!m) return null;   // мышь С КЛЮЧОМ отдаёт ключ, а не кристалл — берём обычную
                 player.x = m.x; player.z = m.z + 2.4; this.look(m.x, m.z, 0.25); return true; },
   get crystals(){ return crystals.map(c => ({ id:c.info.id, форма:c.info.form, взят:c.taken })); },
   get bag(){ return { ...bag }; },
