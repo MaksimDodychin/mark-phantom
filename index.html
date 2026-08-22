@@ -144,7 +144,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#1b2138">
-  <script>window.__APP_VER = "07eaac67f4";</script>
+  <script>window.__APP_VER = "b536809608";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -1166,22 +1166,63 @@ function buildPoolWing() {
           б.position.set(x0 - 0.14 + k*0.14, 1.29, 0.045); вещь.add(б);
         }
       } else {
-        // 👙 КУПАЛЬНИК: лиф на бретельках и низ, висят на плечиках
+        // 👙 КУПАЛЬНИКИ РАЗНЫЕ (просьба Марка): раздельный, слитный и шорты-плавки.
+        const вариант = купальникN++ % 3;
         const плечики = new THREE.Mesh(new THREE.TorusGeometry(0.10, 0.012, 5, 12, Math.PI), M.metal);
         плечики.position.set(x0, 2.22, 0); вещь.add(плечики);
-        for (const ox of [-0.075, 0.075]) {
-          const чашка = new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 8,
-            0, Math.PI*2, 0, Math.PI/2), м);
-          чашка.rotation.x = Math.PI; чашка.position.set(x0 + ox, 1.95, 0); вещь.add(чашка);
-          const бретель = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.28, 0.015), м);
-          бретель.position.set(x0 + ox, 2.09, 0); бретель.rotation.z = ox > 0 ? -0.12 : 0.12; вещь.add(бретель);
+        const крючок = new THREE.Mesh(new THREE.TorusGeometry(0.035, 0.008, 5, 10, Math.PI), M.metal);
+        крючок.position.set(x0, 2.30, 0); крючок.rotation.z = Math.PI; вещь.add(крючок);
+
+        if (вариант === 0) {
+          // ── РАЗДЕЛЬНЫЙ: лиф на бретельках + низ с резинкой
+          for (const ox of [-0.075, 0.075]) {
+            const чашка = new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 8,
+              0, Math.PI*2, 0, Math.PI/2), м);
+            чашка.rotation.x = Math.PI; чашка.position.set(x0 + ox, 1.95, 0); вещь.add(чашка);
+            const бретель = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.28, 0.015), м);
+            бретель.position.set(x0 + ox, 2.09, 0); бретель.rotation.z = ox > 0 ? -0.12 : 0.12;
+            вещь.add(бретель);
+          }
+          const перемычка = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.03, 0.02), м);
+          перемычка.position.set(x0, 1.93, 0); вещь.add(перемычка);
+          const низ = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.20, 0.03), м);
+          низ.position.set(x0, 1.62, 0); вещь.add(низ);
+          const резинка = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.035, 0.035), ткань(0xffffff));
+          резинка.position.set(x0, 1.71, 0); вещь.add(резинка);
+        } else if (вариант === 1) {
+          // ── СЛИТНЫЙ: цельный корпус с вырезом, бретели через плечи, полоска другого цвета
+          const корпус = new THREE.Mesh(new THREE.CylinderGeometry(0.135, 0.115, 0.62, 12, 1, false), м);
+          корпус.scale.z = 0.55; корпус.position.set(x0, 1.80, 0); вещь.add(корпус);
+          const бёдра = new THREE.Mesh(new THREE.SphereGeometry(0.135, 12, 8,
+            0, Math.PI*2, Math.PI/2, Math.PI/2), м);
+          бёдра.scale.z = 0.55; бёдра.position.set(x0, 1.49, 0); вещь.add(бёдра);
+          for (const ox of [-0.065, 0.065]) {
+            const бретель = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.30, 0.016), м);
+            бретель.position.set(x0 + ox, 2.06, 0); бретель.rotation.z = ox > 0 ? -0.14 : 0.14;
+            вещь.add(бретель);
+          }
+          const вырез = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 0.02), ткань(0x1b2230));
+          вырез.position.set(x0, 2.02, 0.075); вещь.add(вырез);
+          const полоса = new THREE.Mesh(new THREE.CylinderGeometry(0.138, 0.132, 0.07, 12), ткань(0xffffff));
+          полоса.scale.z = 0.55; полоса.position.set(x0, 1.72, 0); вещь.add(полоса);
+        } else {
+          // ── ШОРТЫ-ПЛАВКИ: пояс со шнурком и две штанины
+          const пояс = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.06, 0.06), ткань(0x1f2937));
+          пояс.position.set(x0, 1.92, 0); вещь.add(пояс);
+          const верх = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.16, 0.05), м);
+          верх.position.set(x0, 1.82, 0); вещь.add(верх);
+          for (const ox of [-0.075, 0.075]) {
+            const штанина = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.20, 0.05), м);
+            штанина.position.set(x0 + ox, 1.66, 0); штанина.rotation.z = ox > 0 ? -0.05 : 0.05;
+            вещь.add(штанина);
+          }
+          for (const ox of [-0.05, 0.05]) {                 // шнурок
+            const ш = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.10, 0.012), ткань(0xffffff));
+            ш.position.set(x0 + ox, 1.87, 0.035); вещь.add(ш);
+          }
+          const кант = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.02, 0.055), ткань(0xffffff));
+          кант.position.set(x0, 1.57, 0); вещь.add(кант);
         }
-        const перемычка = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.03, 0.02), м);
-        перемычка.position.set(x0, 1.93, 0); вещь.add(перемычка);
-        const низ = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.20, 0.03), м);
-        низ.position.set(x0, 1.62, 0); вещь.add(низ);
-        const резинка = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.035, 0.035), ткань(0xffffff));
-        резинка.position.set(x0, 1.71, 0); вещь.add(резинка);
       }
       надеть(вещь, i % 2 === 0 ? 'полотенце' : 'купальник', цвета[i]);
     }
@@ -1217,7 +1258,7 @@ function addSolidLine(x, z, поворот) {
   const dx = Math.cos(поворот)*1.7, dz = -Math.sin(поворот)*1.7;
   walls.push({ x1:x-dx, z1:z-dz, x2:x+dx, z2:z+dz });
 }
-let poolWater = null, poolBase = null, caustics = [], cloths = [];
+let poolWater = null, poolBase = null, caustics = [], cloths = [], купальникN = 0;
 /* 🧺 полотенце или купальник можно ЗАСОСАТЬ: сначала шатается, потом улетает в трубу,
    и иногда под ним оказывается кристалл (просьба Марка 22.08). */
 function suckCloth(c, dt, сила) {
