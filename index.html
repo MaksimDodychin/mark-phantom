@@ -144,7 +144,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#1b2138">
-  <script>window.__APP_VER = "8a20cae3df";</script>
+  <script>window.__APP_VER = "07eaac67f4";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -1137,6 +1137,12 @@ function buildPoolWing() {
   // 🧺 вешалки с полотенцами и купальниками (просьба Марка)
   const ткань = (цв) => new THREE.MeshStandardMaterial({ color:цв, roughness:0.95, side:THREE.DoubleSide });
   const вешалка = (x, z, поворот) => {
+    const надеть = (узел, вид, цвет) => {              // регистрируем вещь как засасываемую
+      const мир = new THREE.Vector3();
+      узел.updateWorldMatrix(true, false); узел.getWorldPosition(мир);
+      cloths.push({ вид, цвет, mesh:узел, родитель:узел.parent,
+                    x:мир.x, y:мир.y, z:мир.z, t:0, снят:false });
+    };
     const g = new THREE.Group();
     const стойка1 = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 2.4, 8), M.metal);
     стойка1.position.set(-1.6, 1.2, 0); g.add(стойка1);
@@ -1146,38 +1152,45 @@ function buildPoolWing() {
     const цвета = [0xf87171, 0xfbbf24, 0x34d399, 0x60a5fa, 0xf472b6, 0xe2e8f0];
     for (let i = 0; i < 6; i++) {
       const x0 = -1.4 + i*0.56, м = ткань(цвета[i]);
+      const вещь = new THREE.Group(); g.add(вещь);
       if (i % 2 === 0) {
         // 🧺 ПОЛОТЕНЦЕ: перекинуто через штангу, две половинки и складки
         for (const zz of [-0.045, 0.045]) {
           const пол = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.95, 0.02), м);
-          пол.position.set(x0, 1.78, zz); пол.rotation.z = (zz > 0 ? 1 : -1) * 0.02; g.add(пол);
+          пол.position.set(x0, 1.78, zz); пол.rotation.z = (zz > 0 ? 1 : -1) * 0.02; вещь.add(пол);
         }
         const сгиб = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.44, 8, 1, false, 0, Math.PI), м);
-        сгиб.rotation.z = Math.PI/2; сгиб.position.set(x0, 2.28, 0); g.add(сгиб);
+        сгиб.rotation.z = Math.PI/2; сгиб.position.set(x0, 2.28, 0); вещь.add(сгиб);
         for (let k = 0; k < 3; k++) {                       // бахрома снизу
           const б = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.07, 0.03), м);
-          б.position.set(x0 - 0.14 + k*0.14, 1.29, 0.045); g.add(б);
+          б.position.set(x0 - 0.14 + k*0.14, 1.29, 0.045); вещь.add(б);
         }
       } else {
         // 👙 КУПАЛЬНИК: лиф на бретельках и низ, висят на плечиках
         const плечики = new THREE.Mesh(new THREE.TorusGeometry(0.10, 0.012, 5, 12, Math.PI), M.metal);
-        плечики.position.set(x0, 2.22, 0); g.add(плечики);
+        плечики.position.set(x0, 2.22, 0); вещь.add(плечики);
         for (const ox of [-0.075, 0.075]) {
           const чашка = new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 8,
             0, Math.PI*2, 0, Math.PI/2), м);
-          чашка.rotation.x = Math.PI; чашка.position.set(x0 + ox, 1.95, 0); g.add(чашка);
+          чашка.rotation.x = Math.PI; чашка.position.set(x0 + ox, 1.95, 0); вещь.add(чашка);
           const бретель = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.28, 0.015), м);
-          бретель.position.set(x0 + ox, 2.09, 0); бретель.rotation.z = ox > 0 ? -0.12 : 0.12; g.add(бретель);
+          бретель.position.set(x0 + ox, 2.09, 0); бретель.rotation.z = ox > 0 ? -0.12 : 0.12; вещь.add(бретель);
         }
         const перемычка = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.03, 0.02), м);
-        перемычка.position.set(x0, 1.93, 0); g.add(перемычка);
+        перемычка.position.set(x0, 1.93, 0); вещь.add(перемычка);
         const низ = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.20, 0.03), м);
-        низ.position.set(x0, 1.62, 0); g.add(низ);
+        низ.position.set(x0, 1.62, 0); вещь.add(низ);
         const резинка = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.035, 0.035), ткань(0xffffff));
-        резинка.position.set(x0, 1.71, 0); g.add(резинка);
+        резинка.position.set(x0, 1.71, 0); вещь.add(резинка);
       }
+      надеть(вещь, i % 2 === 0 ? 'полотенце' : 'купальник', цвета[i]);
     }
     g.position.set(x, 0, z); g.rotation.y = поворот; world.add(g);
+    // координаты вещей пересчитываем уже после установки вешалки на место
+    g.updateWorldMatrix(true, true);
+    cloths.forEach(c => { if (c.mesh.parent && c.mesh.parent.parent === g) {
+      const v = new THREE.Vector3(); c.mesh.getWorldPosition(v);
+      c.x = v.x; c.y = v.y + 1.85; c.z = v.z; } });
     addSolidLine(x, z, поворот);
   };
   вешалка(13.5, -27.5, 0);
@@ -1204,7 +1217,22 @@ function addSolidLine(x, z, поворот) {
   const dx = Math.cos(поворот)*1.7, dz = -Math.sin(поворот)*1.7;
   walls.push({ x1:x-dx, z1:z-dz, x2:x+dx, z2:z+dz });
 }
-let poolWater = null, poolBase = null, caustics = [];
+let poolWater = null, poolBase = null, caustics = [], cloths = [];
+/* 🧺 полотенце или купальник можно ЗАСОСАТЬ: сначала шатается, потом улетает в трубу,
+   и иногда под ним оказывается кристалл (просьба Марка 22.08). */
+function suckCloth(c, dt, сила) {
+  c.t += dt * сила * 1.6;
+  c.mesh.rotation.z = Math.sin(time*22) * Math.min(0.35, c.t*0.5);
+  c.mesh.position.z = Math.sin(time*18) * Math.min(0.08, c.t*0.1);
+  if (c.t < 1.0) return;
+  c.снят = true;
+  if (c.mesh.parent) c.mesh.parent.remove(c.mesh);
+  Snd.noise(0.3, 0.16, 1500, 1.2); Snd.tone(700, 0.2, 'sine', 0.14, 1400);
+  if (Math.random() < 0.45) {
+    addCrystal('basseyn', c.x, c.z, 1.0);
+    bigMsg('🧺 ' + c.вид.toUpperCase() + ' в трубе — а под ним кристалл!', 2.2, '#22d3ee');
+  } else bigMsg('🧺 ' + c.вид.toUpperCase() + ' засосан', 1.4, '#cbd5e1');
+}
 function updatePool(dt) {
   if (poolWater && poolBase) {                        // рябь: гоняем вершины двумя волнами
     const a = poolWater.geometry.attributes.position;
@@ -1584,6 +1612,10 @@ function startGame(stageId) {
   props.forEach(p => { p.possessedBy = null; p.inNozzle = false; p.suckT = 0;
                        p.mesh.visible = true; p.mesh.position.set(p.x, p.baseY, p.z); });
   crystals.forEach(c => world.remove(c.mesh)); crystals = []; gems = 0;
+  cloths.forEach(c => {                              // вернуть полотенца на вешалки
+    if (c.снят && c.родитель) c.родитель.add(c.mesh);
+    c.снят = false; c.t = 0; c.mesh.rotation.z = 0; c.mesh.position.z = 0;
+  });
   buildCobwebs();                                   // 🕸 паутина заново по углам
   bag.kitchen = false; bag.pool = false;
   lockedDoors.forEach(d => { d.open = false; });
@@ -2261,7 +2293,13 @@ function updateBeam(dt) {
     const w = inBeam(p.x, p.y + p.h*0.3, p.z);
     if (w > bestW) { bestW = w; best = { type:'prop', obj:p }; }
   }
-  // 3) паутина: рвётся и всасыванием, и выдувом
+  // 3) полотенца и купальники на вешалках
+  if (!best) for (const c of cloths) {
+    if (c.снят) continue;
+    const ww = inBeam(c.x, c.y, c.z);
+    if (ww > bestW) { bestW = ww; best = { type:'cloth', obj:c }; }
+  }
+  // 4) паутина: рвётся и всасыванием, и выдувом
   if (!best) for (const w of webs) {
     if (w.torn) continue;
     const ww = inBeam(w.x, w.y, w.z);
@@ -2332,6 +2370,11 @@ function updateBeam(dt) {
       p.shake = 0.3;
       if (Math.random() < 0.04) bigMsg('🛡 ОН ВНУТРИ! Нужен 💨 ВЫДУВ', 1.0, '#fbbf24');
     }
+  }
+  else if (best.type === 'cloth') {
+    $('ghostBar').style.display = 'none';
+    if (mode === 'suck') suckCloth(best.obj, dt, bestW);
+    else best.obj.mesh.rotation.z = Math.sin(time*16)*0.2;
   }
   else if (best.type === 'web') {
     const w = best.obj;
