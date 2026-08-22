@@ -144,7 +144,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#1b2138">
-  <script>window.__APP_VER = "b536809608";</script>
+  <script>window.__APP_VER = "cc46b38688";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -312,6 +312,7 @@ const GHOSTS = {
   // имена придумал Марк
   fantom:  { name:'Фантом',      color:0xd8d4ff, hp: 88, speed:3.2, damage:1, possess:0.2, fade:true },
   polter:  { name:'Полтергейст', color:0xa78bfa, hp: 76, speed:1.8, damage:1, possess:0.9, throws:true },
+  shelest: { name:'Шелест',      color:0xfb923c, hp: 82, speed:2.0, damage:1, possess:0.4, books:true },
 };
 
 /* ══ 💾 ФАЙЛЫ · 🎚 СЛОЖНОСТЬ · ⬆️ УЛУЧШЕНИЯ · 🗄 ХРАНИЛИЩЕ · 🎬 ЭТАПЫ ══ */
@@ -354,7 +355,7 @@ const МИРЫ = [
       { id:'holl',   name:'🏛 Холл',       desc:'Обыск мебели, поиск ключей' },
       { id:'kuhnya', name:'🍳 Кухня',      desc:'Впервые Буян и Домосед' },
       { id:'mech',   name:'⚙️ Механизм',   desc:'Собрать механизм в холле', soon:true },
-      { id:'lib',    name:'📚 Библиотека', desc:'Шелест и Полтергейст', soon:true },
+      { id:'lib',    name:'📚 Библиотека', desc:'Шелест и Полтергейст' },
       { id:'spektr', name:'🔦 Спектр',     desc:'Фонарик против невидимок', soon:true },
       { id:'mouse',  name:'🐭 Мышиная облава', desc:'Переловить всех', soon:true },
       { id:'araxno', name:'🕷 Арахнофобия', desc:'Подвал. Мохноног', soon:true },
@@ -865,7 +866,7 @@ function updateHud() {
   $('caughtCard').textContent = '👻 ' + caught;
   $('gemCard').textContent = '💎 ' + save.gems;
   const кл = [hasKey ? 'парадный' : null, bag.kitchen ? 'кухня' : null,
-              bag.pool ? 'бассейн' : null].filter(Boolean);
+              bag.pool ? 'бассейн' : null, bag.lib ? 'библиотека' : null].filter(Boolean);
   $('keyCard').textContent = '🔑 ' + (кл.length ? кл.join(', ') : '—');
   $('toolCard').textContent = tool === 'vac' ? '🌀 ВИХРЬ-3000' + (held.length ? ' · в трубе: ' + held.map(h => h.label).join(', ') : '')
                             : tool === 'blower' ? '🍃 воздуходувка (только выдув)'
@@ -876,7 +877,8 @@ function updateHud() {
 /* ── состояние игры ────────────────────────────────────────────────── */
 let state = 'menu';
 let hearts = CFG.hearts, caught = 0, gems = 0, task = '';
-const bag = { kitchen:false, pool:false };   // 🔑 найденные ключи от комнат
+const bag = { kitchen:false, pool:false, lib:false };   // 🔑 найденные ключи от комнат
+let keyItem = null;                          // ключ, который надо подобрать
 let tool = null;                     // null | 'blower' | 'vac'
 let hasKey = false, doorOpen = false;
 let held = [];                       // крупные предметы, застрявшие в трубе (1 или 2 с улучшением)
@@ -969,7 +971,12 @@ function buildMansionShell() {
   wallWithDoor(-32, 8, 32, 8, 32, 3.0, 8);
   // боковые и задняя стены
   wallSeg(-32, 8, -32, -24, 8); wallSeg(32, 8, 32, -24, 8);
-  wallWithDoor(-32, -24, 32, -24, 52, 3.2, 8);           // 🏊 проём в крыло с бассейном (x = 20)
+  // два проёма: 📚 библиотека (x = 0) и 🏊 бассейн (x = 20)
+  wallSeg(-32, -24, -1.7, -24, 8); wallSeg(1.7, -24, 18.4, -24, 8); wallSeg(21.6, -24, 32, -24, 8);
+  for (const dx of [0, 20]) {
+    const пер = new THREE.Mesh(new THREE.BoxGeometry(3.4, 5.6, 0.34), M.wall);
+    пер.position.set(dx, 5.2, -24); пер.castShadow = true; world.add(пер);
+  }
   wallSeg(11, -24, 11, -49, 8); wallSeg(31, -24, 31, -49, 8); wallSeg(11, -49, 31, -49, 8);
   // сама дверь (створка)
   const d = new THREE.Mesh(new THREE.BoxGeometry(2.9, 4.3, 0.22), M.wood);
@@ -1015,7 +1022,9 @@ function buildInterior() {
   kitDoor.position.set(9.9, 2.2, -4.2); kitDoor.castShadow = true; world.add(kitDoor);
   walls.push({ x1:9.9, z1:-5.7, x2:9.9, z2:-2.7 });
   const kitWall = walls[walls.length-1];
-  lockedDoors.push({ mesh:libDoor, x:0, z:-23.5, text:'Заперто. Механизм в холле ещё не собран.' });
+  walls.push({ x1:-1.6, z1:-23.7, x2:1.6, z2:-23.7 });
+  lockedDoors.push({ mesh:libDoor, x:0, z:-23.5, key:'lib', wall:walls[walls.length-1],
+                     text:'📚 Библиотека заперта. Ключ подняли со дна бассейна.' });
   const poolDoor = new THREE.Mesh(new THREE.BoxGeometry(3.1, 4.5, 0.24),
     new THREE.MeshStandardMaterial({ color:0x2f6f7f, roughness:0.5 }));
   poolDoor.position.set(20, 2.25, -23.8); poolDoor.castShadow = true; world.add(poolDoor);
@@ -1024,6 +1033,7 @@ function buildInterior() {
   lockedDoors.push({ mesh:poolDoor, x:20, z:-23.8, key:'pool', wall:poolWall,
                      text:'🏊 Дверь в бассейн. Ключ ищи в кухонной мебели.' });
   buildPoolWing();
+  buildLibrary();
   lockedDoors.push({ mesh:kitDoor, x:9.9, z:-4.2, key:'kitchen', wall:kitWall,
                      text:'Кухня заперта. Ключ где-то в доме — обыщи мебель (E).' });
 
@@ -1290,6 +1300,57 @@ function updatePool(dt) {
   }
 }
 
+/* 📚 БИБЛИОТЕКА: за холлом, вход через запертую дверь в задней стене.
+   Хозяин — Шелест: швыряет книги, не касаясь их. */
+function buildLibrary() {
+  const пол = new THREE.Mesh(new THREE.BoxGeometry(24, 0.3, 25), M.wood);
+  пол.position.set(0, -0.15, -36.5); пол.receiveShadow = true; world.add(пол);
+  const потолок = new THREE.Mesh(new THREE.PlaneGeometry(24, 25), M.wall);
+  потолок.rotation.x = Math.PI/2; потолок.position.set(0, 6, -36.5); world.add(потолок);
+  wallSeg(-12, -24, -12, -49, 8); wallSeg(12, -24, 12, -49, 8); wallSeg(-12, -49, 12, -49, 8);
+  // стеллажи вдоль стен, набитые книгами
+  const книжн = new THREE.MeshStandardMaterial({ color:0x4a3320, roughness:0.85 });
+  const цвета = [0x9b2c2c, 0x1f6f4a, 0x1e429f, 0x92400e, 0x4c1d95, 0x0f766e];
+  const стеллаж = (x, z, пов) => {
+    const g = new THREE.Group();
+    const кор = new THREE.Mesh(new THREE.BoxGeometry(3.6, 4.4, 0.55), книжн);
+    кор.position.y = 2.2; кор.castShadow = true; g.add(кор);
+    for (let п = 0; п < 4; п++) {
+      const полка = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.08, 0.62), книжн);
+      полка.position.set(0, 0.65 + п*1.05, 0.05); g.add(полка);
+      for (let k = 0; k < 11; k++) {
+        if (Math.random() < 0.12) continue;                 // где-то книг не хватает
+        const h2 = 0.55 + Math.random()*0.25;
+        const кн = new THREE.Mesh(new THREE.BoxGeometry(0.2 + Math.random()*0.1, h2, 0.42),
+          new THREE.MeshStandardMaterial({ color:цвета[(k+п)%6], roughness:0.9 }));
+        кн.position.set(-1.6 + k*0.32, 0.7 + п*1.05 + h2/2, 0.12);
+        кн.rotation.z = Math.random() < 0.1 ? 0.25 : 0; g.add(кн);
+      }
+    }
+    g.position.set(x, 0, z); g.rotation.y = пов; world.add(g);
+    walls.push({ x1:x - Math.cos(пов)*1.8, z1:z + Math.sin(пов)*1.8,
+                 x2:x + Math.cos(пов)*1.8, z2:z - Math.sin(пов)*1.8 });
+  };
+  for (let i = 0; i < 5; i++) { стеллаж(-10, -28 - i*4.4, 0); стеллаж(10, -28 - i*4.4, Math.PI); }
+  for (let i = 0; i < 4; i++) стеллаж(-6 + i*4, -47.6, Math.PI/2);
+  // читальный стол, кресло, свеча
+  addProp('стол', 0, -36, 3.2, 1.0, 1.6, false);
+  addProp('кресло', -2.6, -33.5, 1.5, 1.2, 1.4, false, true);
+  addProp('комод', 6.5, -30, 2.2, 1.5, 1.1, false, true);
+  addProp('ваза', -7.5, -31, 0.8, 1.4, 0.8, true, true);
+  const свеча = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.4, 8),
+    new THREE.MeshStandardMaterial({ color:0xf5f0dc, emissive:0xffb347, emissiveIntensity:0.6 }));
+  свеча.position.set(0.8, 1.2, -36); world.add(свеча);
+  const огонёк = new THREE.PointLight(0xffb347, 6, 14); огонёк.position.set(0.8, 1.5, -36); world.add(огонёк);
+  const общий = new THREE.PointLight(0xc7b8e8, 1.3, 26); общий.position.set(0, 4.8, -36); world.add(общий);
+}
+function spawnLibraryGhosts() {
+  новыйВид('shelest', 0, -42, 900);
+  новыйВид('polter', -6, -38, 6000);
+  addCrystal('holl', 8, -45, 1.0);
+  addCrystal('holl', -9, -34, 1.0);
+}
+
 // 🕸 паутина по углам всех комнат — под каждой прячется фиолетовый кристалл
 function buildCobwebs() {
   webs.forEach(w => world.remove(w.mesh)); webs = [];
@@ -1334,7 +1395,7 @@ function makeFurniture(label, w, h, d) {
       ст.position.set(rnd(-0.06, 0.06), h*1.28, rnd(-0.06, 0.06));
       ст.rotation.set(rnd(-0.2, 0.2), 0, rnd(-0.25, 0.25)); g.add(ст);
     }
-    g.position.y = -h/2; return { obj:g, mats };
+    return { obj:g, mats };
   }
   if (label === 'комод' || label === 'шкаф') {
     const шкаф = label === 'шкаф';
@@ -1358,7 +1419,7 @@ function makeFurniture(label, w, h, d) {
       const ручка = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.014, 6, 14), латунь());
       ручка.rotation.x = Math.PI/2; ручка.position.set(0, yy, d/2 + 0.05); g.add(ручка);
     }
-    g.position.y = -h/2; return { obj:g, mats };
+    return { obj:g, mats };
   }
   if (label === 'стул') {
     const сид = 0.52, ножH = сид;
@@ -1367,7 +1428,7 @@ function makeFurniture(label, w, h, d) {
     короб(w, h - сид, 0.06, 0, сид + (h-сид)/2, -d/2 + 0.05, дерево());   // спинка
     for (let i = 0; i < 2; i++)
       короб(w - 0.22, 0.05, 0.07, 0, сид + 0.18 + i*0.22, -d/2 + 0.09, тёмн());
-    g.position.y = -h/2; return { obj:g, mats };
+    return { obj:g, mats };
   }
   if (label === 'кресло') {
     const т = ткань(0x6b4f3a);
@@ -1375,7 +1436,7 @@ function makeFurniture(label, w, h, d) {
     короб(w, h*0.8, 0.22, 0, 0.42 + h*0.4, -d/2 + 0.11, т);               // спинка
     for (const ox of [-1, 1]) короб(0.18, 0.34, d - 0.14, ox*(w/2 - 0.09), 0.60, 0.05, т);
     ножки(w - 0.1, d - 0.1, 0.28, тёмн());
-    g.position.y = -h/2; return { obj:g, mats };
+    return { obj:g, mats };
   }
   if (label === 'стол' || label === 'верстак') {
     короб(w, 0.10, d, 0, h - 0.05, 0, дерево());                          // столешница
@@ -1386,7 +1447,7 @@ function makeFurniture(label, w, h, d) {
         M2(new THREE.MeshStandardMaterial({ color:0x7a8291, roughness:0.4, metalness:0.7 })));
       тиски.position.set(w/2 - 0.35, h + 0.11, 0); g.add(тиски);
     }
-    g.position.y = -h/2; return { obj:g, mats };
+    return { obj:g, mats };
   }
   if (label === 'бочка') {
     const дуги = M2(new THREE.MeshStandardMaterial({ color:0x8b5a2b, roughness:0.85 }));
@@ -1399,7 +1460,7 @@ function makeFurniture(label, w, h, d) {
         M2(new THREE.MeshStandardMaterial({ color:0x5b6470, roughness:0.4, metalness:0.7 })));
       о.rotation.x = Math.PI/2; о.position.y = yy; g.add(о);
     }
-    g.position.y = -h/2; return { obj:g, mats };
+    return { obj:g, mats };
   }
   if (label === 'ящик') {
     короб(w, h, d, 0, h/2, 0, дерево());
@@ -1407,13 +1468,13 @@ function makeFurniture(label, w, h, d) {
       [w+0.02, 0.06, 0.06, 0, 0.05, d/2], [w+0.02, 0.06, 0.06, 0, h-0.05, d/2],
       [0.06, h, 0.06, -w/2, h/2, d/2], [0.06, h, 0.06, w/2, h/2, d/2]])
       короб(sx, sy, sz, xx, yy, zz, тёмн());
-    g.position.y = -h/2; return { obj:g, mats };
+    return { obj:g, mats };
   }
   if (label === 'картина') {
     короб(0.06, h, d, 0, h/2, 0, тёмн());
     короб(0.02, h - 0.22, d - 0.22, 0.03, h/2, 0,
       M2(new THREE.MeshStandardMaterial({ color:0x4b5d3a, roughness:0.95 })));
-    g.position.y = -h/2; return { obj:g, mats };
+    return { obj:g, mats };
   }
   if (label === 'плита') {
     короб(w, h, d, 0, h/2, 0, M2(new THREE.MeshStandardMaterial({ color:0x8d949e,
@@ -1424,7 +1485,7 @@ function makeFurniture(label, w, h, d) {
       к.rotation.x = Math.PI/2; к.position.set(ox*w*0.25, h + 0.06, oz*d*0.22); g.add(к);
     }
     короб(w - 0.2, h*0.45, 0.04, 0, h*0.35, d/2 + 0.02, тёмн());
-    g.position.y = -h/2; return { obj:g, mats };
+    return { obj:g, mats };
   }
   if (label === 'кастрюля') {
     const мет = M2(new THREE.MeshStandardMaterial({ color:0xb9c2cc, roughness:0.3, metalness:0.8 }));
@@ -1436,12 +1497,12 @@ function makeFurniture(label, w, h, d) {
       const р = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.02, 6, 12), мет);
       р.position.set(ox*w/2, h*0.7, 0); р.rotation.y = Math.PI/2; g.add(р);
     }
-    g.position.y = -h/2; return { obj:g, mats };
+    return { obj:g, mats };
   }
   if (label === 'шина') {
     const т = new THREE.Mesh(new THREE.TorusGeometry(w/2, w/5, 10, 20),
       M2(new THREE.MeshStandardMaterial({ color:0x22262d, roughness:0.95 })));
-    т.rotation.x = Math.PI/2; т.castShadow = true; g.add(т);
+    т.rotation.x = Math.PI/2; т.position.y = w/5; т.castShadow = true; g.add(т);
     return { obj:g, mats };
   }
   const b2 = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), дерево());
@@ -1451,9 +1512,11 @@ function makeFurniture(label, w, h, d) {
 
 function addProp(label, x, z, w, h, d, big, searchable) {
   const { obj, mats } = makeFurniture(label, w, h, d);
-  obj.position.set(x, h/2, z);
+  // ⚠️ Детали мебели строятся ОТ ПОЛА (y = 0…h), поэтому группу ставим на пол.
+  // Раньше тут было h/2 — и шкафы с тумбами висели в воздухе (поймал Марк 22.08).
+  obj.position.set(x, 0, z);
   world.add(obj);
-  const p = { label, x, z, y: h/2, w, h, d, big, mesh: obj, mats, baseY: h/2, shake: 0,
+  const p = { label, x, z, y: h/2, w, h, d, big, mesh: obj, mats, baseY: 0, shake: 0,
               possessedBy: null, ejectT: 0, searchable: !!searchable, searched: false, hides: null };
   props.push(p);
   if (!big) walls.push({ x1:x-w/2, z1:z, x2:x+w/2, z2:z });
@@ -1514,6 +1577,49 @@ function addCrystal(id, x, z, y = 1.0) {
   g.position.set(x, y, z); world.add(g);
   const c = { info, x, y, z, mesh:g, body, taken:false };
   crystals.push(c); return c;
+}
+/* 🔑 ключ, который лежит в мире и подбирается касанием */
+function dropKey(kind, x, z, y, текст) {
+  if (keyItem) return;
+  const g = new THREE.Group();
+  const кольцо = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.06, 8, 16),
+    new THREE.MeshStandardMaterial({ color:0xf5d76e, metalness:0.9, roughness:0.25,
+      emissive:0x8a6d1b, emissiveIntensity:1.2 }));
+  g.add(кольцо);
+  const стержень = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.09, 0.09), кольцо.material);
+  стержень.position.x = 0.36; g.add(стержень);
+  const зуб = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.2, 0.09), кольцо.material);
+  зуб.position.set(0.56, -0.13, 0); g.add(зуб);
+  const L = new THREE.PointLight(0xffd76e, 5, 12); g.add(L);
+  g.position.set(x, y, z); world.add(g);
+  keyItem = { kind, x, y, z, mesh:g };
+  bigMsg(текст, 3.0, '#fde68a');
+  Snd.catchWin();
+}
+function updateKeyItem(dt) {
+  if (!keyItem) return;
+  keyItem.mesh.rotation.y += dt*1.6;
+  keyItem.mesh.position.y = keyItem.y + Math.sin(time*2)*0.18;
+  if (Math.hypot(keyItem.x-player.x, keyItem.z-player.z) < 2.2 &&
+      Math.abs(keyItem.mesh.position.y - player.y) < 2.6) {
+    bag[keyItem.kind] = true;
+    world.remove(keyItem.mesh); keyItem = null;
+    Snd.pickup();
+    bigMsg('🔑 КЛЮЧ ОТ БИБЛИОТЕКИ У ТЕБЯ!', 2.4, '#fde68a');
+    say('🧍 Ты', 'Библиотека — за дверью в глубине холла. Пойдём почитаем.', 5);
+    task = '📚 Открыть библиотеку в холле';
+    hint('Дверь в дальней стене холла — жми E');
+    updateHud();
+  }
+}
+/* 🏊 собрал все синие кристаллы — со дна поднимается ключ от библиотеки */
+function checkPoolDone() {
+  if (bag.lib || keyItem) return;
+  const синие = crystals.filter(c => c.info.id === 'basseyn');
+  if (синие.length < 4 || синие.some(c => !c.taken)) return;
+  dropKey('lib', 20, -38, POOL.дно + 1.4,
+          '💠 ВСЕ ВОДЯНЫЕ КРИСТАЛЛЫ СОБРАНЫ!\nсо дна что-то поднялось');
+  say('💙 Дом', 'скр-р-режет… что-то поднимается со дна…', 4);
 }
 function updateCrystals(dt) {
   for (const c of crystals) {
@@ -1658,7 +1764,8 @@ function startGame(stageId) {
     c.снят = false; c.t = 0; c.mesh.rotation.z = 0; c.mesh.position.z = 0;
   });
   buildCobwebs();                                   // 🕸 паутина заново по углам
-  bag.kitchen = false; bag.pool = false;
+  bag.kitchen = false; bag.pool = false; bag.lib = false;
+  if (keyItem) { world.remove(keyItem.mesh); keyItem = null; }
   lockedDoors.forEach(d => { d.open = false; });
   props.forEach(p => { p.searched = false; p.hides = null; });
   // 💎 кристаллы: в саду, в гараже и в холле — у каждого своя форма и цвет
@@ -1712,6 +1819,10 @@ function skipTo(id) {
     task = '🔧 Найти ВИХРЬ-3000 в гараже'; hint('Слева гараж — прибор на верстаке'); }
   if (id === 'holl')   { дать(); пылесос(); player.x = 0; player.z = 0; player.yaw = 0;
     task = '👻 Переловить призраков в холле'; }
+  if (id === 'lib') { дать(); пылесос(); bag.kitchen = true; bag.pool = true; bag.lib = true;
+    const dl = lockedDoors.find(x => x.key === 'lib');
+    if (dl && !dl.open) { player.x = 0; player.z = -21; interact(); }
+    player.x = 0; player.z = -30; player.yaw = Math.PI; task = '📚 Поймать Шелеста и Полтергейста'; }
   if (id === 'basseyn') { дать(); пылесос(); bag.kitchen = true; bag.pool = true;
     const dk = lockedDoors.find(x => x.key === 'kitchen');
     if (dk && !dk.open) { player.x = 8.2; player.z = -4.2; interact(); }
@@ -2011,7 +2122,12 @@ function interact() {
       if (d.wall) { d.wall.x1 = d.wall.x2 = 99; d.wall.z1 = d.wall.z2 = 99; }
       d.mesh.rotation.y = 1.2; d.mesh.position.x += 1.1; d.mesh.position.z += 1.0;
       Snd.tone(220, 0.7, 'sawtooth', 0.2, 120);
-      if (d.key === 'pool') {
+      if (d.key === 'lib') {
+        bigMsg('📚 БИБЛИОТЕКА ОТКРЫТА', 2.2, '#fb923c');
+        say('🧍 Ты', 'Сколько книг… и все шелестят сами по себе.', 5);
+        save.stages.lib = true; saveNow();
+        spawnLibraryGhosts();
+      } else if (d.key === 'pool') {
         bigMsg('🏊 БАССЕЙН ОТКРЫТ', 2.2, '#67e8f9');
         say('💙 Дом', 'плеск… плеск…', 3);
         save.stages.basseyn = true; saveNow();
@@ -2697,6 +2813,7 @@ function loop(now) {
     updateViewModel(dt, Math.hypot(stickV.x, stickV.y) ||
       ((keys.KeyW||keys.KeyS||keys.KeyA||keys.KeyD) ? 1 : 0)); updateGhosts(dt); updateMice(dt);
     updateProps(dt); updateShots(dt); updatePuffs(dt); updateCrystals(dt); updateRain(dt); updatePool(dt); updateAirFlow(dt);
+    updateKeyItem(dt); checkPoolDone();
     if (msgT > 0) { msgT -= dt; if (msgT <= 0) $('bigMsg').style.opacity = 0; }
     if (subT > 0) { subT -= dt; if (subT <= 0) $('subs').classList.add('hidden'); }
   }
@@ -2738,6 +2855,13 @@ window.__dbg = {
                        вВоде:inPool(player.x, player.z), воздух:+breath.toFixed(2) }; },
   toPool(){ player.x = 20; player.z = -38; player.dive = 0; return true; },
   diveHold(on){ diveHeld = !!on; return diveHeld; },
+  get propsY(){ return props.map(p => { const b = new THREE.Box3().setFromObject(p.mesh);
+                  return { label:p.label, низ:+b.min.y.toFixed(2) }; }); },
+  get keyItem(){ return keyItem ? keyItem.kind : null; },
+  toKey(){ if (!keyItem) return null; player.x = keyItem.x; player.z = keyItem.z;
+           player.y = keyItem.y; player.dive = 1; return true; },
+  get doors(){ const o = {}; lockedDoors.forEach(d => { if (d.key) o[d.key] = !!d.open; }); return o; },
+  use(){ interact(); return true; },
   toCrystal(i){ const c = crystals.filter(x => !x.taken)[i||0]; if (!c) return null;
             player.x = c.x + 4; player.z = c.z + 4; this.look(c.x, c.z, c.y); return true; },
   toWeb(i){ const w = webs.filter(x => !x.torn)[i||0]; if (!w) return null;
@@ -2754,8 +2878,11 @@ window.__dbg = {
                return { былоKitchen:было.kitchen, сталоKitchen:bag.kitchen }; },
   openKitchen(){ player.x = 8.2; player.z = -4.2; interact(); 
                  return (lockedDoors.find(d => d.key === 'kitchen') || {}).open === true; },
-  grabCrystals(){ for (const c of crystals) { if (c.taken) continue;
-                    player.x = c.x; player.z = c.z; updateCrystals(0.001); } return gems; },
+  grabCrystals(){ const y0 = player.y;
+                  for (const c of crystals) { if (c.taken) continue;
+                    player.x = c.x; player.z = c.z; player.y = c.mesh.position.y;   // донные — на глубине
+                    updateCrystals(0.001); }
+                  player.y = y0; return gems; },
   get charge(){ return +chargeT.toFixed(2); },
   get turbo(){ return turboReady; },
   get target(){ return target ? target.type + ':' + (target.obj.label || target.obj.kind || 'мышь') : null; },
