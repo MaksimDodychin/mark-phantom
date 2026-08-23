@@ -20,6 +20,17 @@ self.addEventListener('activate', e => {
     const ks = await caches.keys();
     await Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)));
     await self.clients.claim();
+    // 🔄 ПРИНУДИТЕЛЬНОЕ ОБНОВЛЕНИЕ СТАРЫХ КОПИЙ.
+    // Даже если на телефоне лежит старая страница без нового обновлятора, браузер всё равно
+    // скачивает свежий sw.js при заходе. Новый воркер сам перезагружает открытые окна
+    // на свежий адрес — и застрявшая версия обновляется без всяких кнопок (Марк, 23.08).
+    try {
+      const окна = await self.clients.matchAll({ type: 'window' });
+      for (const w of окна) {
+        const базовый = w.url.split('?')[0];
+        await w.navigate(базовый + '?v=' + Date.now());
+      }
+    } catch (_) {}
   })());
 });
 
