@@ -1,7 +1,7 @@
-// service worker «Тайна поместья Фантомовых» — версия по содержимому: fb800d108c
+// service worker «Тайна поместья Фантомовых» — версия по содержимому: 458d3daaeb
 // Игра всегда отдаётся МГНОВЕННО из памяти телефона (и работает без интернета).
 // Новая версия скачивается фоном при следующем заходе и применяется сама.
-const CACHE = 'phantom-fb800d108c';
+const CACHE = 'phantom-458d3daaeb';
 const ASSETS = ['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png','./icon-512-maskable.png','./apple-touch-icon.png','./favicon-64.png'];
 
 self.addEventListener('install', e => {
