@@ -144,7 +144,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#1b2138">
-  <script>window.__APP_VER = "e8cb21a9a1";</script>
+  <script>window.__APP_VER = "af29c679a6";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -2078,6 +2078,26 @@ function skipTo(id) {
     task = '🔧 Найти ВИХРЬ-3000 в гараже'; hint('Слева гараж — прибор на верстаке'); }
   if (id === 'holl')   { дать(); пылесос(); player.x = 0; player.z = 0; player.yaw = 0;
     task = '👻 Переловить призраков в холле'; }
+  const доБиблиотеки = () => { дать(); пылесос(); bag.kitchen = true; bag.pool = true; bag.lib = true;
+    const dk = lockedDoors.find(x => x.key === 'kitchen');
+    if (dk && !dk.open) { player.x = 8.2; player.z = -4.2; interact(); }
+    const dp = lockedDoors.find(x => x.key === 'pool');
+    if (dp && !dp.open) { player.x = 20; player.z = -22; interact(); }
+    const dl = lockedDoors.find(x => x.key === 'lib');
+    if (dl && !dl.open) { player.x = 0; player.z = -21; interact(); } };
+  const дайСпектр = () => { const sp = pickups.find(x => x.kind === 'spectre');
+    if (sp && !sp.taken) { player.x = sp.x; player.z = sp.z; interact(); } };
+  if (id === 'spektr') { доБиблиотеки(); дайСпектр();
+    player.x = 0; player.z = -34; task = '🔦 Спектр у тебя — попробуй его'; }
+  if (id === 'vanish') { доБиблиотеки(); дайСпектр();
+    player.x = 0; player.z = -10; player.yaw = 0;
+    setTimeout(() => { if (state === 'play') startVanishing(); }, 800);
+    task = '🔦 Вернуть пропавшие вещи'; }
+  if (id === 'mouse')  { доБиблиотеки(); дайСпектр();
+    player.x = 0; player.z = -8; setTimeout(() => { if (state === 'play') startMouseHunt(); }, 800); }
+  if (id === 'araxno') { доБиблиотеки(); дайСпектр(); laundryOpen = true;
+    player.x = -19; player.z = -11; player.yaw = Math.PI;
+    task = '🕷 Прачечная в глубине гаража → мусоропровод'; hint('Иди в прачечную и прыгай в мусоропровод'); }
   if (id === 'lib') { дать(); пылесос(); bag.kitchen = true; bag.pool = true; bag.lib = true;
     const dl = lockedDoors.find(x => x.key === 'lib');
     if (dl && !dl.open) { player.x = 0; player.z = -21; interact(); }
@@ -2559,6 +2579,7 @@ function updateVanished(dt) {
         bigMsg('✨ ' + p.label.toUpperCase() + ' ВЕРНУЛСЯ!' + (осталось ? '\nосталось вещей: ' + осталось : ''),
                2.4, '#86efac');
         task = осталось ? '🔦 Вернуть пропавшие вещи: ' + осталось + ' шт' : '🐭 Мышиная облава';
+        if (!осталось) { save.stages.vanish = true; saveNow(); }   // ← без этого этап не засчитывался
         updateHud();
         if (!осталось) setTimeout(startMouseHunt, 2500);
         continue;
