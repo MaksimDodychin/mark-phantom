@@ -144,7 +144,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#1b2138">
-  <script>window.__APP_VER = "a61beeebe2";</script>
+  <script>window.__APP_VER = "cbde45b9d5";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -380,7 +380,7 @@ const МИРЫ = [
       { id:'or2', name:'🔑 Ключи от ворот',     desc:'Их растащили Домоседы', soon:true },
       { id:'or3', name:'🌙 Ночь в оранжерее',   desc:'Три средних босса', soon:true },
       { id:'or4', name:'🌿 Теплица-лабиринт',   desc:'Подрезать лианы выдувом', soon:true },
-      { id:'or5', name:'🌺 Зевака — БОСС',      desc:'Мухоловка бьёт головой', soon:true },
+      { id:'or5', name:'🌺 Зевака — БОСС',      desc:'Мухоловка бьёт головой — увернись и стреляй' },
     ] },
   { id:'sport', name:'🏀 Спортивный участок', desc:'Бейсбол, баскетбол, футбол, мини-гольф',
     stages:[
@@ -1361,6 +1361,115 @@ function updatePool(dt) {
   }
 }
 
+/* 🌺 ЗЕВАКА — босс оранжереи (замысел Марка): мухоловка ждёт с открытой пастью,
+   бьёт головой сверху — увернись, потом выстрели ей в башку, оттуда вылетит призрак. */
+let zevaka = null;
+function spawnZevaka(x, z) {
+  const g = new THREE.Group();
+  const зелень = new THREE.MeshStandardMaterial({ color:0x3f7a2e, roughness:0.9 });
+  const пасть = new THREE.MeshStandardMaterial({ color:0xb91c1c, roughness:0.8 });
+  const горшок = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.0, 2.2, 16),
+    new THREE.MeshStandardMaterial({ color:0x8a5a3a, roughness:0.95 }));
+  горшок.position.y = 1.1; g.add(горшок);
+  const стебель = new THREE.Group();
+  const ств = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 6.5, 10), зелень);
+  ств.position.y = 3.2; стебель.add(ств);
+  const голова = new THREE.Group();
+  const низ = new THREE.Mesh(new THREE.SphereGeometry(1.7, 16, 12, 0, 6.28, 0, 1.6), пасть);
+  низ.scale.set(1, 0.75, 1.25); голова.add(низ);
+  const верх = new THREE.Mesh(new THREE.SphereGeometry(1.7, 16, 12, 0, 6.28, 0, 1.6), пасть);
+  верх.scale.set(1, 0.75, 1.25); верх.rotation.x = Math.PI; верх.position.y = 0.1;
+  голова.add(верх);
+  for (const узел of [низ, верх]) for (let i = 0; i < 9; i++) {
+    const зуб = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.6, 5),
+      new THREE.MeshStandardMaterial({ color:0xfff7e6, roughness:0.6 }));
+    const a = i/9*6.28;
+    зуб.position.set(Math.cos(a)*1.55, узел === низ ? 0.02 : -0.02, Math.sin(a)*1.9);
+    зуб.rotation.x = узел === низ ? 0 : Math.PI;
+    голова.add(зуб);
+  }
+  const дух = new THREE.Mesh(new THREE.SphereGeometry(0.85, 14, 10),
+    new THREE.MeshStandardMaterial({ color:0x84cc16, transparent:true, opacity:0,
+      emissive:0x84cc16, emissiveIntensity:1.8, depthWrite:false }));
+  дух.position.y = 0.2; голова.add(дух);
+  голова.position.y = 6.6; стебель.add(голова);
+  g.add(стебель);
+  g.position.set(x, 0, z); world.add(g);
+  addSolidBox(x, z, 4, 4);
+  zevaka = { x, z, mesh:g, стебель, голова, верх, дух, hp:3, фаза:'ждёт', t:0, откат:3.2, alive:true };
+  Snd.music(true, 'boss');
+  bigMsg('🌺 ЗЕВАКА ПРОСНУЛСЯ!', 3.2, '#84cc16');
+  say('🌺 Зевака', 'Тише… я слушаю, как растут корни. А ты — шумишь.', 6);
+  setTimeout(() => say('💙 Дом', 'Он бьёт головой сверху! Увернись, а пока башка на земле — стреляй в неё!', 8), 6200);
+  task = '🌺 Победить Зеваку';
+}
+function updateZevaka(dt) {
+  if (!zevaka || !zevaka.alive || !player) return;
+  zevaka.t += dt;
+  const dx = player.x - zevaka.x, dz = player.z - zevaka.z, d = Math.hypot(dx, dz) || 1;
+  zevaka.mesh.rotation.y = Math.atan2(dx, dz);
+  if (zevaka.фаза === 'ждёт') {
+    zevaka.стебель.rotation.x = Math.sin(zevaka.t*1.2)*0.06;
+    zevaka.верх.rotation.x = Math.PI + Math.sin(zevaka.t*1.6)*0.25;   // пасть дышит
+    zevaka.голова.position.y = 6.6 + Math.sin(zevaka.t*1.1)*0.3;
+    zevaka.откат -= dt;
+    if (zevaka.откат <= 0 && d < 16) {
+      zevaka.фаза = 'замах'; zevaka.t = 0;
+      bigMsg('⚠️ ОН ЗАМАХИВАЕТСЯ — УВОРАЧИВАЙСЯ!', 1.6, '#fca5a5');
+      Snd.tone(140, 0.5, 'sawtooth', 0.18, 260);
+    }
+  } else if (zevaka.фаза === 'замах') {
+    zevaka.стебель.rotation.x = -0.5 - Math.min(0.5, zevaka.t);
+    if (zevaka.t > 1.1) { zevaka.фаза = 'удар'; zevaka.t = 0;
+      zevaka.цельX = player.x; zevaka.цельZ = player.z; }
+  } else if (zevaka.фаза === 'удар') {
+    zevaka.стебель.rotation.x = clamp(-1.0 + zevaka.t*7, -1.0, 1.15);
+    if (zevaka.t > 0.3 && !zevaka.бахнул) {
+      zevaka.бахнул = true;
+      puff(zevaka.цельX, 0.5, zevaka.цельZ, 0x84cc16, 20);
+      Snd.noise(0.5, 0.3, 240, 0.8);
+      if (Math.hypot(player.x - zevaka.цельX, player.z - zevaka.цельZ) < 3.6) hurt(1);
+      else bigMsg('💨 УВЕРНУЛСЯ! Стреляй ему в башку', 2, '#86efac');
+    }
+    if (zevaka.t > 0.5) { zevaka.фаза = 'лежит'; zevaka.t = 0; zevaka.бахнул = false; }
+  } else if (zevaka.фаза === 'лежит') {
+    zevaka.стебель.rotation.x = 1.15;
+    zevaka.дух.material.opacity = 0.7;
+    if (zevaka.t > 4) { zevaka.фаза = 'ждёт'; zevaka.t = 0; zevaka.откат = 3.6;
+                        zevaka.дух.material.opacity = 0; }
+  }
+  // голова на земле и в неё попали — вылетает призрак
+  if (zevaka.фаза === 'лежит' && zevaka.подбит) {
+    zevaka.подбит = false; zevaka.hp--;
+    for (let i = 0; i < 20; i++) puff(zevaka.x, 1.5, zevaka.z + 4, 0x84cc16);
+    Snd.ejectSfx();
+    if (zevaka.hp <= 0) return killZevaka();
+    bigMsg('🌺 ЕЩЁ ' + zevaka.hp + '!', 2, '#fde68a');
+    новыйВид('loza', zevaka.x + rnd(-4, 4), zevaka.z + 5, 0);
+    zevaka.фаза = 'ждёт'; zevaka.t = 0; zevaka.откат = 3.2; zevaka.дух.material.opacity = 0;
+  }
+}
+function hitZevaka(x, z, y) {
+  if (!zevaka || !zevaka.alive || zevaka.фаза !== 'лежит') return false;
+  // когда стебель уложен, башка лежит примерно перед горшком
+  const гx = zevaka.x + Math.sin(zevaka.mesh.rotation.y)*5.5;
+  const гz = zevaka.z + Math.cos(zevaka.mesh.rotation.y)*5.5;
+  if (Math.hypot(x-гx, z-гz) > 4.5 || y > 5) return false;
+  zevaka.подбит = true;
+  return true;
+}
+function killZevaka() {
+  zevaka.alive = false;
+  world.remove(zevaka.mesh);
+  caught++; save.seen.zevaka = (save.seen.zevaka | 0) + 1;
+  save.stages.or5 = true; saveNow();
+  Snd.catchWin(); Snd.music(true);
+  bigMsg('🏆 ЗЕВАКА ПОЙМАН!\nОРАНЖЕРЕЯ ЧИСТА', 3.6, '#fde68a');
+  say('💙 Дом', 'Вот и всё с оранжереей. Дальше — спортивный участок за живой изгородью. Но это уже завтра.', 9);
+  task = '🏆 Оранжерея очищена!';
+  updateHud();
+}
+
 /* 🚪 ВОРОТА В САДУ: после победы над Мохноногом выходишь из дома — а в заборе
    открылись ворота, и за ними оранжерея (замысел Марка 23.08). */
 let ворота = null;
@@ -1491,6 +1600,12 @@ function addSolidBox(x, z, w, d) {
 }
 function updateGreenhouse(dt) {
   if (!насос) return;
+  // 🌺 всех жильцов переловил — из большой грядки поднимается Зевака
+  if (насос.включён && !zevaka && !save.stages.or5 && !ghDone) {
+    const живы = ghosts.filter(g => g.alive && ['loza','zhuzha','plesnyak'].includes(g.kind)).length;
+    const пойманы = ['loza','zhuzha','plesnyak'].every(k => (save.seen[k] | 0) > 0);
+    if (!живы && пойманы) { ghDone = true; setTimeout(() => { if (state === 'play') spawnZevaka(21, -73); }, 1500); }
+  }
   насос.колесо.rotation.z += насос.включён ? dt*3 : 0;
   насос.лампа.material.emissive.setHex(насос.включён ? 0x22c55e : 0xef4444);
   растения.forEach(р => {
@@ -2288,6 +2403,8 @@ function startGame(stageId) {
   vanished = []; mouseHunt = 0; laundryOpen = false;
   if (ручка) { world.remove(ручка.mesh); ручка = null; }
   if (ворота) { ворота.открыты = false; ворота.mesh.visible = false; }
+  if (zevaka) { world.remove(zevaka.mesh); zevaka = null; }
+  ghDone = false;
   if (насос) { насос.включён = false; насос.есть = false; }
   растения.forEach(р => { р.цель = 0.28; р.mesh.scale.setScalar(0.28); р.цветок.visible = false; });
   if (spider) { world.remove(spider.mesh); spider = null; }
@@ -2353,6 +2470,9 @@ function skipTo(id) {
   if (id === 'araxno') { доБиблиотеки(); дайСпектр(); laundryOpen = true;
     player.x = -19; player.z = -11; player.yaw = Math.PI;
     task = '🕷 Прачечная в глубине гаража → мусоропровод'; hint('Иди в прачечную и прыгай в мусоропровод'); }
+  if (id === 'or5') { доБиблиотеки(); дайСпектр(); laundryOpen = true; openGreenhouse();
+    включитьНасос(); player.x = 21; player.z = -66; player.yaw = Math.PI;
+    setTimeout(() => { if (state === 'play') spawnZevaka(21, -73); }, 1200); }
   if (id === 'or1') { доБиблиотеки(); дайСпектр(); laundryOpen = true; openGreenhouse();
     player.x = 21; player.z = -54; player.yaw = Math.PI; }
   if (id === 'lib') { дать(); пылесос(); bag.kitchen = true; bag.pool = true; bag.lib = true;
@@ -3473,7 +3593,8 @@ function updateShots(dt) {
     s.mesh.position.set(s.x, s.y, s.z);
     s.mesh.rotation.x += dt*7; s.mesh.rotation.z += dt*5;
     let hit = false;
-    if (spider && spider.alive && !s.отПризрака &&
+    if (!s.отПризрака && hitZevaka(s.x, s.z, s.y)) hit = true;
+    if (!hit && spider && spider.alive && !s.отПризрака &&
         Math.hypot(spider.x-s.x, spider.z-s.z) < 3.4 && s.y < 6) { stunSpider(); hit = true; }
     if (!hit && s.отПризрака && Math.hypot(player.x-s.x, player.z-s.z) < 1.3 && Math.abs(player.y-s.y) < 1.6) {
       hurt(1); hit = true;
@@ -3525,7 +3646,7 @@ function loop(now) {
       ((keys.KeyW||keys.KeyS||keys.KeyA||keys.KeyD) ? 1 : 0)); updateGhosts(dt); updateMice(dt);
     updateProps(dt); updateShots(dt); updatePuffs(dt); updateCrystals(dt); updateRain(dt); updatePool(dt); updateAirFlow(dt);
     updateKeyItem(dt); checkPoolDone(); updateSpectre(dt); updateLibrary(dt);
-    updateVanished(dt); updateMouseHunt(dt); updateChute(dt); updateSpider(dt); updateGreenhouse(dt); updateGates(dt); updateCellarExit(dt);
+    updateVanished(dt); updateMouseHunt(dt); updateChute(dt); updateSpider(dt); updateGreenhouse(dt); updateGates(dt); updateCellarExit(dt); updateZevaka(dt);
     if (msgT > 0) { msgT -= dt; if (msgT <= 0) $('bigMsg').style.opacity = 0; }
     if (subT > 0) { subT -= dt; if (subT <= 0) $('subs').classList.add('hidden'); }
   }
@@ -3607,6 +3728,13 @@ window.__dbg = {
                      if (!spectreOn) toggleSpectre(); return true; },
   get mouseHunt(){ return mouseHunt; },
   get laundry(){ return laundryOpen; },
+  get zevaka(){ return zevaka && zevaka.alive ? { hp:zevaka.hp, фаза:zevaka.фаза } : null; },
+  slamZevaka(){ if (!zevaka) return null; zevaka.фаза = 'лежит'; zevaka.t = 0;
+                zevaka.дух.material.opacity = 0.7; return zevaka.фаза; },
+  hitZevaka(){ if (!zevaka) return null;
+               const гx = zevaka.x + Math.sin(zevaka.mesh.rotation.y)*5.5;
+               const гz = zevaka.z + Math.cos(zevaka.mesh.rotation.y)*5.5;
+               return hitZevaka(гx, гz, 2); },
   get greenhouse(){ return насос ? { рукоятка:!!насос.есть, насос:насос.включён,
                      растения:растения.length, выросли:растения.filter(r => r.mesh.scale.x > 0.9).length,
                      дверь:(lockedDoors.find(d => d.key === 'green')||{}).open === true } : null; },
