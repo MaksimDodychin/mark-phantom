@@ -144,7 +144,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#1b2138">
-  <script>window.__APP_VER = "af29c679a6";</script>
+  <script>window.__APP_VER = "dab524d441";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -317,6 +317,10 @@ const GHOSTS = {
   shelest: { name:'Шелест',      color:0xfb923c, hp: 82, speed:2.0, damage:1, possess:0.4, books:true },
   pronyra: { name:'Проныра',     color:0x4ade80, hp: 70, speed:2.4, damage:1, possess:0.5, invisible:true },
   sharik:  { name:'Шарик',       color:0x38bdf8, hp: 34, speed:3.0, damage:0, possess:0, шар:true },
+  // 🌺 жильцы оранжереи
+  loza:    { name:'Лоза',        color:0x65a30d, hp: 74, speed:1.4, damage:1, possess:0.8 },
+  zhuzha:  { name:'Жужжа',       color:0xfacc15, hp: 46, speed:4.2, damage:1, possess:0.1 },
+  plesnyak:{ name:'Плесняк',     color:0x7c9070, hp: 96, speed:1.0, damage:1, possess:0.6 },
 };
 
 /* ══ 💾 ФАЙЛЫ · 🎚 СЛОЖНОСТЬ · ⬆️ УЛУЧШЕНИЯ · 🗄 ХРАНИЛИЩЕ · 🎬 ЭТАПЫ ══ */
@@ -350,6 +354,12 @@ const GHOST_INFO = {
   pronyra: { emoji:'🟢', text:'Умеет исчезать целиком. Ни глазом, ни извлекателем не найдёшь — только фонариком СПЕКТР.' },
   fantom:  { emoji:'👤', text:'То появляется, то истаивает почти в ничто. Быстрый и злой. Носит фамилию хозяев дома — совпадение ли?' },
   polter:  { emoji:'🌀', text:'Полтергейст. Поднимает в воздух мебель и метает её в тебя. Самый шумный жилец поместья.' },
+  sharik:  { emoji:'🔵', text:'Может вселиться в ЛЮБОЙ предмет — и тогда этот предмет никто больше не видит. Ищи пустое место Спектром: там он и сидит.' },
+  loza:    { emoji:'🌿', text:'При жизни садовница: подвязывала кусты и стригла живые изгороди. Работу не бросила — теперь подвязывает гостей. Обожает прятаться в грядках.' },
+  zhuzha:  { emoji:'🐝', text:'Держала пасеку за оранжереей и всё жужжала себе под нос. Летает быстрее всех и петляет, будто пчела над цветком. Поймать её — дело удачи и терпения.' },
+  plesnyak:{ emoji:'🍄', text:'Не жил в поместье вовсе — завёлся сам, от сырости, когда сломался насос. Медленный, тяжёлый и очень живучий: пока всю трубу не вычистишь, не сдастся.' },
+  zevaka:  { emoji:'🌺', text:'ЗЕВАКА. При жизни он был хорошим ботаническим учёным и до сих пор увлекается растениями. Теперь узнаёт на себе, каково это — быть растением.' },
+  spider:  { emoji:'🕷', text:'МОХНОНОГ — подвальный призрак. Из питомцев у него только пауки да крысы. Смешное: при жизни у него была арахнофобия и мусофобия — боязнь пауков и боязнь мышей. Досталось же ему после смерти.' },
 };
 const МИРЫ = [
   { id:'manor', name:'🏚 Поместье Фантомовых', desc:'Сад, гараж, холл, кухня и дальше вглубь дома',
@@ -366,7 +376,7 @@ const МИРЫ = [
     ] },
   { id:'oranj', name:'🌺 Оранжерея', desc:'Заросшие цветы Фантомовых',
     stages:[
-      { id:'or1', name:'🔧 Насос и водопровод', desc:'Оживить растения', soon:true },
+      { id:'or1', name:'🔧 Насос и водопровод', desc:'Найти рукоятку и пустить воду' },
       { id:'or2', name:'🔑 Ключи от ворот',     desc:'Их растащили Домоседы', soon:true },
       { id:'or3', name:'🌙 Ночь в оранжерее',   desc:'Три средних босса', soon:true },
       { id:'or4', name:'🌿 Теплица-лабиринт',   desc:'Подрезать лианы выдувом', soon:true },
@@ -393,7 +403,7 @@ const МИРЫ = [
 const STAGES = МИРЫ.flatMap(m => m.stages);
 
 const SAVE_KEY = 'phantom_saves_v1';
-function blankSave() { return { used:false, diff:'normal', gems:0, seen:{}, up:{}, stages:{} }; }
+function blankSave() { return { used:false, diff:'normal', gems:0, seen:{}, up:{}, stages:{}, gemsTaken:{} }; }
 let slots = [blankSave(), blankSave(), blankSave()], slotIdx = 0;
 let save = slots[0];
 function loadAll() {
@@ -1081,6 +1091,8 @@ function buildInterior() {
   buildPoolWing();
   buildLibrary();
   buildLaundry();
+  buildGreenhouse();
+  buildGates();
   lockedDoors.push({ mesh:kitDoor, x:9.9, z:-4.2, key:'kitchen', wall:kitWall,
                      text:'Кухня заперта. Ключ где-то в доме — обыщи мебель (E).' });
 
@@ -1347,6 +1359,197 @@ function updatePool(dt) {
   }
 }
 
+/* 🚪 ВОРОТА В САДУ: после победы над Мохноногом выходишь из дома — а в заборе
+   открылись ворота, и за ними оранжерея (замысел Марка 23.08). */
+let ворота = null;
+function buildGates() {
+  const g = new THREE.Group();
+  const камень = new THREE.MeshStandardMaterial({ color:0x5a6270, roughness:0.9 });
+  for (const ox of [-1, 1]) {
+    const столб = new THREE.Mesh(new THREE.BoxGeometry(1.4, 6.5, 1.4), камень);
+    столб.position.set(ox*2.6, 3.25, 0); столб.castShadow = true; g.add(столб);
+    const шар = new THREE.Mesh(new THREE.SphereGeometry(0.7, 12, 10), камень);
+    шар.position.set(ox*2.6, 6.9, 0); g.add(шар);
+  }
+  const арка = new THREE.Mesh(new THREE.TorusGeometry(2.6, 0.28, 8, 22, Math.PI), M.metal);
+  арка.position.set(0, 6.2, 0); g.add(арка);
+  for (const ox of [-1, 1]) {                        // кованые створки, распахнуты
+    const с = new THREE.Group();
+    for (let i = 0; i < 6; i++) {
+      const прут = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 4.6, 6), M.metal);
+      прут.position.set(i*0.34, 2.3, 0); с.add(прут);
+    }
+    с.position.set(ox*1.9, 0, 0); с.rotation.y = ox*1.1; g.add(с);
+  }
+  const вывеска = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.9, 0.14),
+    new THREE.MeshStandardMaterial({ color:0x2f6f4f, emissive:0x84cc16, emissiveIntensity:0.9 }));
+  вывеска.position.set(0, 7.4, 0); g.add(вывеска);
+  const L = new THREE.PointLight(0x84cc16, 22, 26); L.position.set(0, 5, 1.5); g.add(L);
+  g.position.set(22, 0, 16); g.rotation.y = -0.35;
+  g.visible = false; world.add(g);
+  ворота = { x:22, z:16, mesh:g, открыты:false };
+}
+function openGates() {
+  if (!ворота) return;
+  ворота.открыты = true; ворота.mesh.visible = true;
+  bigMsg('🚪 В САДУ ОТКРЫЛИСЬ ВОРОТА!', 3.2, '#84cc16');
+  say('💙 Дом', 'Слышишь скрип? Это ворота в дальнем углу сада. За ними — оранжерея Фантомовых.', 8);
+  task = '🚪 Выйти из дома и пройти в ворота';
+  hint('Ворота справа в саду, за домом их не видно — выходи наружу');
+  updateHud();
+}
+function updateGates(dt) {
+  if (!ворота || !ворота.открыты || !player) return;
+  ворота.mesh.children.forEach((c, i) => { if (c.isPointLight) c.intensity = 18 + Math.sin(time*3)*6; });
+  if (Math.hypot(ворота.x-player.x, ворота.z-player.z) > 2.4) return;
+  // прошёл ворота — оказываешься у оранжереи
+  openGreenhouse();
+  player.x = 21; player.z = -52; player.yaw = Math.PI; player.dive = 0;
+  bigMsg('🌺 ОРАНЖЕРЕЯ ФАНТОМОВЫХ', 3, '#84cc16');
+  ворота.открыты = false;
+}
+
+/* 🌺 ОРАНЖЕРЕЯ (следующий мир): стеклянное крыло за бассейном. Всё засохло —
+   пока не починишь насос и не пустишь воду, растения не вырастут (замысел Марка). */
+let насос = null, растения = [], ghDone = false;
+function buildGreenhouse() {
+  растения = [];
+  const стекло = new THREE.MeshStandardMaterial({ color:0xbfe8d0, transparent:true, opacity:0.28,
+    roughness:0.05, metalness:0.2, side:THREE.DoubleSide });
+  const рама = new THREE.MeshStandardMaterial({ color:0x556070, roughness:0.5, metalness:0.6 });
+  const земля = new THREE.MeshStandardMaterial({ color:0x4a3a28, roughness:1 });
+  // проём в задней стене бассейна
+  wallSeg(11, -49, 18.4, -49, 8); wallSeg(21.6, -49, 31, -49, 8);
+  const дверь = new THREE.Mesh(new THREE.BoxGeometry(3.1, 4.5, 0.24), рама);
+  дверь.position.set(20, 2.25, -48.8); world.add(дверь);
+  walls.push({ x1:18.5, z1:-48.8, x2:21.5, z2:-48.8 });
+  lockedDoors.push({ mesh:дверь, x:20, z:-48.8, key:'green', wall:walls[walls.length-1],
+                     text:'🌺 Оранжерея. Откроется, когда разберёшься с подвалом.' });
+  // стены-стёкла и пол
+  const пол = new THREE.Mesh(new THREE.BoxGeometry(22, 0.3, 30), M.stone);
+  пол.position.set(21, -0.15, -64); пол.receiveShadow = true; world.add(пол);
+  wallSeg(10, -49, 10, -79, 7); wallSeg(32, -49, 32, -79, 7); wallSeg(10, -79, 32, -79, 7);
+  for (let i = 0; i < 8; i++) {                       // стеклянная крыша-скат
+    const п = new THREE.Mesh(new THREE.BoxGeometry(22, 0.16, 3.6), стекло);
+    п.position.set(21, 7.2, -50 - i*3.7); п.rotation.x = 0.12; world.add(п);
+  }
+  for (const x of [10.4, 31.6]) for (let i = 0; i < 8; i++) {
+    const п = new THREE.Mesh(new THREE.BoxGeometry(0.16, 7, 3.6), стекло);
+    п.position.set(x, 3.5, -50 - i*3.7); world.add(п);
+  }
+  // грядки и засохшие растения — они вырастут после воды
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 2; c++) {
+    const gx = 15 + c*12, gz = -55 - r*7;
+    const я = new THREE.Mesh(new THREE.BoxGeometry(7, 0.7, 4), земля);
+    я.position.set(gx, 0.35, gz); я.receiveShadow = true; world.add(я);
+    walls.push({ x1:gx-3.5, z1:gz, x2:gx+3.5, z2:gz });
+    for (let k = 0; k < 5; k++) {
+      const g2 = new THREE.Group();
+      const ствол = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.11, 1.0, 6),
+        new THREE.MeshStandardMaterial({ color:0x6b7f3a, roughness:0.95 }));
+      ствол.position.y = 0.5; g2.add(ствол);
+      for (let l = 0; l < 4; l++) {
+        const лист = new THREE.Mesh(new THREE.SphereGeometry(0.34, 8, 6),
+          new THREE.MeshStandardMaterial({ color:0x87a03f, roughness:0.95 }));
+        лист.scale.set(1.5, 0.35, 1); лист.position.set(Math.cos(l/4*6.28)*0.32, 0.75 + l*0.12,
+                                                        Math.sin(l/4*6.28)*0.32);
+        g2.add(лист);
+      }
+      const цветок = new THREE.Mesh(new THREE.IcosahedronGeometry(0.24, 0),
+        new THREE.MeshStandardMaterial({ color:[0xf472b6,0xfbbf24,0xf87171,0xa78bfa][k%4],
+          roughness:0.7, emissive:0x000000 }));
+      цветок.position.y = 1.15; цветок.visible = false; g2.add(цветок);
+      g2.position.set(gx - 2.6 + k*1.3, 0.7, gz);
+      g2.scale.setScalar(0.28);                       // засохшие — маленькие
+      world.add(g2);
+      растения.push({ mesh:g2, цветок, цель:0.28 });
+    }
+  }
+  // 🔧 НАСОС: труба, колесо и место под рукоятку
+  const н = new THREE.Group();
+  const бак = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.3, 2.4, 14), M.metal);
+  бак.position.y = 1.2; н.add(бак);
+  const труба = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 3.4, 10), M.metal);
+  труба.rotation.z = Math.PI/2; труба.position.set(1.8, 2.0, 0); н.add(труба);
+  const колесо = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.11, 8, 18),
+    new THREE.MeshStandardMaterial({ color:0xb91c1c, roughness:0.5 }));
+  колесо.position.set(0, 2.4, 1.0); н.add(колесо);
+  const лампа = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8),
+    new THREE.MeshStandardMaterial({ color:0x7f1d1d, emissive:0xef4444, emissiveIntensity:1.6 }));
+  лампа.position.set(0.8, 2.6, 0.8); н.add(лампа);
+  н.position.set(21, 0, -76); world.add(н);
+  addSolidBox(21, -76, 3, 2.4);
+  насос = { x:21, z:-76, mesh:н, колесо, лампа, включён:false, есть:false };
+  const св = new THREE.PointLight(0xbfe8d0, 1.2, 30); св.position.set(21, 6, -62); world.add(св);
+  // 🌿 обитатели и кристаллы появятся после воды
+}
+function addSolidBox(x, z, w, d) {
+  walls.push({ x1:x-w/2, z1:z-d/2, x2:x+w/2, z2:z-d/2 });
+  walls.push({ x1:x-w/2, z1:z+d/2, x2:x+w/2, z2:z+d/2 });
+}
+function updateGreenhouse(dt) {
+  if (!насос) return;
+  насос.колесо.rotation.z += насос.включён ? dt*3 : 0;
+  насос.лампа.material.emissive.setHex(насос.включён ? 0x22c55e : 0xef4444);
+  растения.forEach(р => {
+    const s2 = р.mesh.scale.x + (р.цель - р.mesh.scale.x) * Math.min(1, dt*2.2);
+    р.mesh.scale.setScalar(s2);
+    if (s2 > 0.9) р.цветок.visible = true;
+  });
+  if (!player) return;
+  // взять рукоятку
+  if (!насос.есть && ручка && !ручка.взята &&
+      Math.hypot(ручка.x-player.x, ручка.z-player.z) < 2.2) {
+    ручка.взята = true; world.remove(ручка.mesh); насос.есть = true;
+    Snd.pickup();
+    bigMsg('🔧 РУКОЯТКА НАСОСА!', 2.2, '#84cc16');
+    task = '🔧 Вставить рукоятку в насос в глубине оранжереи';
+    updateHud();
+  }
+  // включить насос
+  if (насос.есть && !насос.включён && Math.hypot(насос.x-player.x, насос.z-player.z) < 3.4)
+    включитьНасос();
+}
+let ручка = null;
+function включитьНасос() {
+  насос.включён = true;
+  растения.forEach(р => р.цель = 1);
+  save.stages.or1 = true; saveNow();
+  Snd.tone(180, 0.6, 'sawtooth', 0.2, 90); Snd.noise(1.4, 0.18, 700, 0.7);
+  bigMsg('💧 ВОДА ПОШЛА!\nрастения оживают', 3.4, '#84cc16');
+  say('💙 Дом', 'ш-ш-ш-ш… наконец-то…', 4);
+  task = '🌺 Оранжерея ожила — лови призраков';
+  for (let i = 0; i < 22; i++)
+    setTimeout(() => puff(21 + rnd(-8, 8), rnd(0.5, 3), -62 + rnd(-12, 12), 0x84cc16, 12), i*120);
+  addCrystal('oranj', 15, -55, 1.0, true);
+  addCrystal('oranj', 27, -60, 1.0, true);
+  addCrystal('oranj', 16, -70, 1.0, true);
+  новыйВид('loza', 16, -58, 2000);
+  новыйВид('zhuzha', 26, -63, 8000);
+  новыйВид('plesnyak', 21, -73, 15000);
+  updateHud();
+}
+function openGreenhouse() {
+  const d = lockedDoors.find(x => x.key === 'green');
+  if (d && !d.open) { d.open = true;
+    if (d.wall) { d.wall.x1 = d.wall.x2 = 99; d.wall.z1 = d.wall.z2 = 99; }
+    d.mesh.rotation.y = 1.2; d.mesh.position.x += 1.2; }
+  if (!ручка) {                                       // рукоятка валяется среди грядок
+    const g = new THREE.Group();
+    const с = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.12, 0.12), M.metal); g.add(с);
+    const к = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.3, 8), M.metal);
+    к.rotation.z = Math.PI/2; к.position.x = -0.34; g.add(к);
+    const L = new THREE.PointLight(0x84cc16, 4, 10); g.add(L);
+    g.position.set(27, 1.1, -55); world.add(g);
+    ручка = { x:27, z:-55, mesh:g, взята:false };
+  }
+  bigMsg('🌺 ОРАНЖЕРЕЯ ОТКРЫТА', 2.6, '#84cc16');
+  say('💙 Дом', 'Тут всё засохло. Был насос… где-то валялась рукоятка от него.', 7);
+  task = '🔧 Найти рукоятку насоса';
+  hint('Оранжерея за бассейном. Ищи рукоятку среди грядок');
+  updateHud();
+}
+
 /* 🧺 ПРАЧЕЧНАЯ в глубине гаража, а в ней 🕳 МУСОРОПРОВОД вниз, в подвал (замысел Марка). */
 function buildLaundry() {
   // отгораживаем дальний угол гаража стенкой с дверью
@@ -1496,9 +1699,10 @@ function killSpider() {
   world.remove(spider.mesh);
   caught++; save.seen.spider = (save.seen.spider | 0) + 1; saveNow();
   Snd.catchWin(); Snd.music(true);
-  bigMsg('🏆 МОХНОНОГ ПОБЕЖДЁН!', 3.4, '#fde68a');
-  say('💙 Дом', 'Тихо. Впервые за много лет — тихо. Спасибо тебе.', 7);
-  task = '🏆 Поместье очищено!';
+  bigMsg('🏆 МОХНОНОГ ПОБЕЖДЁН!\n🌺 ОТКРЫЛАСЬ ОРАНЖЕРЕЯ', 3.6, '#fde68a');
+  say('💙 Дом', 'Тихо… Поместье чисто. Но за бассейном есть стеклянное крыло — оранжерея. Там тоже неспокойно.', 9);
+  save.stages.araxno = true; saveNow();
+  setTimeout(() => { if (state === 'play') openGates(); }, 3000);
   updateHud();
 }
 
@@ -1562,8 +1766,8 @@ function spawnLibraryGhosts() {
   spawnLibraryGhosts._было = true;
   новыйВид('shelest', 0, -42, 900);
   новыйВид('polter', -6, -38, 6000);
-  addCrystal('holl', 8, -45, 1.0);
-  addCrystal('holl', -9, -34, 1.0);
+  addCrystal('holl', 8, -45, 1.0, true);
+  addCrystal('holl', -9, -34, 1.0, true);
 }
 
 // 🕸 паутина по углам всех комнат — под каждой прячется фиолетовый кристалл
@@ -1749,6 +1953,7 @@ const CRYSTALS = [
   // 🟣 фиолетовые кристаллы поместья: прячутся под паутиной и достаются от мышей (Марк, 22.08)
   { id:'osobnyak', name:'Поместья',   color:0xa855f7, form:'icosa' },
   { id:'basseyn',  name:'Водяной',    color:0x22d3ee, form:'octa' },   // 🏊 синие, на дне бассейна
+  { id:'oranj',    name:'Цветочный',  color:0x84cc16, form:'tetra' },  // 🌺 зелёные, в оранжерее
 ];
 let webs = [];
 function addCobweb(x, z, y) {
@@ -1781,7 +1986,11 @@ function crystalGeo(form, r) {
   if (form === 'dodeca') return new THREE.DodecahedronGeometry(r, 0);
   return new THREE.OctahedronGeometry(r, 0);
 }
-function addCrystal(id, x, z, y = 1.0) {
+function addCrystal(id, x, z, y = 1.0, постоянный) {
+  // 🔒 Постоянные кристаллы (те, что всегда лежат на своих местах) запоминаются в сохранении:
+  // собрал один раз — больше не появится. Марк: «не хочу вечно собирать одни и те же».
+  const ключ = постоянный ? id + '@' + Math.round(x) + ',' + Math.round(z) : null;
+  if (ключ) { save.gemsTaken = save.gemsTaken || {}; if (save.gemsTaken[ключ]) return null; }
   const info = CRYSTALS.find(c => c.id === id) || CRYSTALS[0];
   const g = new THREE.Group();
   const body = new THREE.Mesh(crystalGeo(info.form, 0.34),
@@ -1790,7 +1999,7 @@ function addCrystal(id, x, z, y = 1.0) {
   body.scale.y = 1.5; g.add(body);
   const gl = new THREE.PointLight(info.color, 2.4, 7); g.add(gl);
   g.position.set(x, y, z); world.add(g);
-  const c = { info, x, y, z, mesh:g, body, taken:false };
+  const c = { info, x, y, z, mesh:g, body, taken:false, ключ };
   crystals.push(c); return c;
 }
 /* 🔑 ключ, который лежит в мире и подбирается касанием */
@@ -1830,8 +2039,11 @@ function updateKeyItem(dt) {
 /* 🏊 собрал все синие кристаллы — со дна поднимается ключ от библиотеки */
 function checkPoolDone() {
   if (bag.lib || keyItem) return;
+  if (!save.stages.basseyn) return;                  // ещё не заходил в бассейн
   const синие = crystals.filter(c => c.info.id === 'basseyn');
-  if (синие.length < 4 || синие.some(c => !c.taken)) return;
+  // ⚠️ кристаллы теперь запоминаются: если их уже собрали раньше, их просто нет в мире,
+  // и ждать «все собраны» бессмысленно — ключ надо выдать сразу.
+  if (синие.some(c => !c.taken)) return;
   dropKey('lib', 20, -38, POOL.дно + 1.4,
           '💠 ВСЕ ВОДЯНЫЕ КРИСТАЛЛЫ СОБРАНЫ!\nсо дна что-то поднялось');
   say('💙 Дом', 'скр-р-режет… что-то поднимается со дна…', 4);
@@ -1854,7 +2066,9 @@ function updateCrystals(dt) {
     // радиус подбора щедрый: ребёнок не должен ловить кристалл миллиметрами
     if (Math.hypot(c.x-player.x, c.z-player.z) < 2.2 &&
         Math.abs(c.mesh.position.y - player.y) < 2.4) {
-      c.taken = true; world.remove(c.mesh); gems++; save.gems++; saveNow();
+      c.taken = true; world.remove(c.mesh); gems++; save.gems++;
+      if (c.ключ) { save.gemsTaken = save.gemsTaken || {}; save.gemsTaken[c.ключ] = 1; }
+      saveNow();
       Snd.tone(1046, 0.16, 'triangle', 0.24); setTimeout(() => Snd.tone(1568, 0.3, 'triangle', 0.2), 110);
       bigMsg('💎 КРИСТАЛЛ: ' + c.info.name, 1.6, '#' + c.info.color.toString(16).padStart(6, '0'));
       updateHud();
@@ -2022,9 +2236,9 @@ function startGame(stageId) {
   lockedDoors.forEach(d => { d.open = false; });
   props.forEach(p => { p.searched = false; p.hides = null; });
   // 💎 кристаллы: в саду, в гараже и в холле — у каждого своя форма и цвет
-  addCrystal('sad', -14, 26, 0.9); addCrystal('sad', 21, 17, 0.9);
-  addCrystal('garazh', -27, -10, 0.9);
-  addCrystal('holl', 0, -12, 0.9);
+  addCrystal('sad', -14, 26, 0.9, true); addCrystal('sad', 21, 17, 0.9, true);
+  addCrystal('garazh', -27, -10, 0.9, true);
+  addCrystal('holl', 0, -12, 0.9, true);
   // 🔑 ключ от кухни прячем в случайный комод, ещё в двух — кристалл
   const вХолле = props.filter(p => p.searchable && p.x < 10);
   const вКухне = props.filter(p => p.searchable && p.x >= 10);
@@ -2035,6 +2249,10 @@ function startGame(stageId) {
   scene.fog.density = 0.013; scene.background.setHex(0x0c1526);
   hasSpectre = false; spectreOn = false; if (spectreLight) spectreLight.intensity = 0;
   vanished = []; mouseHunt = 0; laundryOpen = false;
+  if (ручка) { world.remove(ручка.mesh); ручка = null; }
+  if (ворота) { ворота.открыты = false; ворота.mesh.visible = false; }
+  if (насос) { насос.включён = false; насос.есть = false; }
+  растения.forEach(р => { р.цель = 0.28; р.mesh.scale.setScalar(0.28); р.цветок.visible = false; });
   if (spider) { world.remove(spider.mesh); spider = null; }
   cellar = null;
   hearts = diff().hearts; caught = 0; tool = null; hasKey = false; doorOpen = false;
@@ -2098,6 +2316,8 @@ function skipTo(id) {
   if (id === 'araxno') { доБиблиотеки(); дайСпектр(); laundryOpen = true;
     player.x = -19; player.z = -11; player.yaw = Math.PI;
     task = '🕷 Прачечная в глубине гаража → мусоропровод'; hint('Иди в прачечную и прыгай в мусоропровод'); }
+  if (id === 'or1') { доБиблиотеки(); дайСпектр(); laundryOpen = true; openGreenhouse();
+    player.x = 21; player.z = -54; player.yaw = Math.PI; }
   if (id === 'lib') { дать(); пылесос(); bag.kitchen = true; bag.pool = true; bag.lib = true;
     const dl = lockedDoors.find(x => x.key === 'lib');
     if (dl && !dl.open) { player.x = 0; player.z = -21; interact(); }
@@ -2235,10 +2455,11 @@ function renderDiff() {
 }
 function renderVault() {
   const g = $('vaultGrid'); g.innerHTML = '';
-  const kinds = Object.keys(GHOSTS);
+  const kinds = Object.keys(GHOSTS).concat(['spider', 'zevaka']);   // 🕷🌺 боссы тоже жильцы
   let открыто = 0;
   kinds.forEach(k => {
-    const info = GHOSTS[k], добавка = GHOST_INFO[k] || { emoji:'👻', text:'' };
+    const info = GHOSTS[k] || { name: k === 'spider' ? 'Мохноног' : 'Зевака', hp:'—' };
+    const добавка = GHOST_INFO[k] || { emoji:'👻', text:'' };
     const n = save.seen[k] | 0;
     if (n) открыто++;
     const el = document.createElement('div');
@@ -2474,15 +2695,15 @@ function spawnPoolGhosts() {                       // 🏊 БАССЕЙН: сю�
   новыйВид('buyan', 24, -44, 7000);
   новыйВид('fantom', 20, -40, 15000);
   // 🔵 то, что надо искать на дне
-  addCrystal('basseyn', 17, -35, POOL.дно + 0.9);
-  addCrystal('basseyn', 25, -41, POOL.дно + 0.9);
-  addCrystal('basseyn', 21, -44, POOL.дно + 0.9);
-  addCrystal('basseyn', 15.5, -44.5, POOL.дно + 0.9);
+  addCrystal('basseyn', 17, -35, POOL.дно + 0.9, true);
+  addCrystal('basseyn', 25, -41, POOL.дно + 0.9, true);
+  addCrystal('basseyn', 21, -44, POOL.дно + 0.9, true);
+  addCrystal('basseyn', 15.5, -44.5, POOL.дно + 0.9, true);
 }
 function spawnKitchenGhosts() {                    // 🍳 КУХНЯ: тут впервые кусаются
   новыйВид('buyan', 20, -10, 600);
   новыйВид('domosed', 24, -14, 4200);
-  addCrystal('kuhnya', 22, -8, 1.0);
+  addCrystal('kuhnya', 22, -8, 1.0, true);
 }
 
 /* 👻 РАССЕЛЕНИЕ ПО ЭТАПАМ (правило Марка 22.08): в каждом новом этапе — новый вид призрака,
@@ -2820,7 +3041,9 @@ function updatePlayer(dt) {
   let nx = player.x + (-sy*fz + cy*fx) * sp * dt;
   let nz = player.z + (-cy*fz - sy*fx) * sp * dt;
   const r = slideAlongWalls(nx, nz, CFG.radius);
-  player.x = clamp(r.x, -33, 45); player.z = clamp(r.z, -48.2, 45);
+  // ⚠️ Границу мира двигать вместе с новыми крыльями: раньше стояло -48.2, и в оранжерею
+  // (z до -79) игрок физически не мог зайти — его возвращало назад (поймано тестом 23.08).
+  player.x = clamp(r.x, -33, 45); player.z = clamp(r.z, -78.5, 45);
 
   // 🏊 БАССЕЙН: Пробел (или кнопка ✋ на телефоне) — ныряешь, отпустил — всплываешь
   const вВоде = inPool(player.x, player.z);
@@ -3264,7 +3487,7 @@ function loop(now) {
       ((keys.KeyW||keys.KeyS||keys.KeyA||keys.KeyD) ? 1 : 0)); updateGhosts(dt); updateMice(dt);
     updateProps(dt); updateShots(dt); updatePuffs(dt); updateCrystals(dt); updateRain(dt); updatePool(dt); updateAirFlow(dt);
     updateKeyItem(dt); checkPoolDone(); updateSpectre(dt); updateLibrary(dt);
-    updateVanished(dt); updateMouseHunt(dt); updateChute(dt); updateSpider(dt);
+    updateVanished(dt); updateMouseHunt(dt); updateChute(dt); updateSpider(dt); updateGreenhouse(dt); updateGates(dt);
     if (msgT > 0) { msgT -= dt; if (msgT <= 0) $('bigMsg').style.opacity = 0; }
     if (subT > 0) { subT -= dt; if (subT <= 0) $('subs').classList.add('hidden'); }
   }
@@ -3320,7 +3543,10 @@ window.__dbg = {
   toMouseAny(){ const m = mice.find(m2 => m2.alive && !m2.withKey) || mice.find(m2 => m2.alive);
                 if (!m) return null;   // мышь С КЛЮЧОМ отдаёт ключ, а не кристалл — берём обычную
                 player.x = m.x; player.z = m.z + 2.4; this.look(m.x, m.z, 0.25); return true; },
-  get crystals(){ return crystals.map(c => ({ id:c.info.id, форма:c.info.form, взят:c.taken })); },
+  get crystals(){ return crystals.map(c => ({ id:c.info.id, форма:c.info.form, взят:c.taken,
+                    постоянный:!!c.ключ })); },
+  get gemsTaken(){ return Object.keys(save.gemsTaken || {}).length; },
+  forgetGems(){ save.gemsTaken = {}; saveNow(); return 0; },
   get bag(){ return { ...bag }; },
   get searchable(){ return props.filter(p => p.searchable).map(p => ({ label:p.label,
                       обыскан:p.searched, прячет:p.hides })); },
@@ -3343,6 +3569,14 @@ window.__dbg = {
                      if (!spectreOn) toggleSpectre(); return true; },
   get mouseHunt(){ return mouseHunt; },
   get laundry(){ return laundryOpen; },
+  get greenhouse(){ return насос ? { рукоятка:!!насос.есть, насос:насос.включён,
+                     растения:растения.length, выросли:растения.filter(r => r.mesh.scale.x > 0.9).length,
+                     дверь:(lockedDoors.find(d => d.key === 'green')||{}).open === true } : null; },
+  get gates(){ return ворота ? { открыты:ворота.открыты, видны:ворота.mesh.visible } : null; },
+  openGates(){ openGates(); return true; },
+  toGates(){ if (!ворота) return null; player.x = ворота.x; player.z = ворота.z; return true; },
+  toHandle(){ if (!ручка) return null; player.x = ручка.x; player.z = ручка.z; return true; },
+  toPump(){ if (!насос) return null; player.x = насос.x; player.z = насос.z + 3; return true; },
   toChute(){ if (!chute) return null; player.x = chute.x; player.z = chute.z; return true; },
   get spider(){ return spider && spider.alive ? { hp:spider.hp, оглушён:+spider.оглушён.toFixed(1) } : null; },
   toSpider(){ if (!spider) return null; player.x = spider.x + 3; player.z = spider.z + 3;
