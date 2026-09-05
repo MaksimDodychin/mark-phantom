@@ -144,7 +144,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#1b2138">
-  <script>window.__APP_VER = "75caaecb19";</script>
+  <script>window.__APP_VER = "c8bb885bf5";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -1606,6 +1606,39 @@ function buildGreenhouse() {
   насос = { x:21, z:-76, mesh:н, колесо, лампа, включён:false, есть:false };
   const св = new THREE.PointLight(0xbfe8d0, 1.2, 30); св.position.set(21, 6, -62); world.add(св);
   // 🌿 обитатели и кристаллы появятся после воды
+  buildSportDoor();
+}
+// 🚪 ДВЕРЬ В СПОРТЗАЛ из оранжереи (просьба Марка: не мог дойти до спорта).
+// Стоит в боковой стене оранжереи, работает после победы над Зевакой (or5).
+let спортДверь = null;
+function buildSportDoor() {
+  // проём в восточной стене оранжереи (x=32), у входа
+  const рама = new THREE.MeshStandardMaterial({ color:0xf97316, roughness:0.5, metalness:0.3 });
+  const дверь = new THREE.Mesh(new THREE.BoxGeometry(0.3, 4.4, 3.2), рама);
+  дверь.position.set(32, 2.2, -53); world.add(дверь);
+  const мяч = new THREE.Mesh(new THREE.SphereGeometry(0.5, 14, 10),
+    new THREE.MeshStandardMaterial({ color:0xffffff, emissive:0x888888, emissiveIntensity:0.4 }));
+  мяч.position.set(31.7, 3.4, -53); world.add(мяч);
+  const L = new THREE.PointLight(0xffa500, 0, 12); L.position.set(31, 3, -53); world.add(L);
+  спортДверь = { x:32, z:-53, mesh:дверь, мяч, light:L, wall:{ x1:30.5, z1:-53, x2:33.5, z2:-53 } };
+  walls.push(спортДверь.wall);
+}
+function updateSportDoor(dt) {
+  if (!спортДверь || !player) return;
+  const открыта = !!save.stages.or5;
+  спортДверь.light.intensity = открыта ? (10 + Math.sin(time*3)*4) : 0;
+  спортДверь.мяч.rotation.y += dt * (открыта ? 2 : 0.2);
+  спортДверь.мяч.material.emissiveIntensity = открыта ? 1.2 : 0.4;
+  if (Math.hypot(спортДверь.x-player.x, спортДверь.z-player.z) > 2.6) { спортДверь._рядом = false; return; }
+  if (!открыта) { if (!спортДверь._буркнул) { спортДверь._буркнул = true;
+      bigMsg('🔒 Сначала победи Зеваку', 1.6, '#f97316'); } return; }
+  спортДверь._буркнул = false;
+  if (спортДверь._рядом) return; спортДверь._рядом = true;
+  // 🏀 переход на спортучасток
+  bigMsg('🏀 СПОРТИВНЫЙ УЧАСТОК!', 2.6, '#f97316');
+  границы = { x1:SPX-25, x2:SPX+25, z1:SPZ-16, z2:SPZ+16 };
+  player.x = SPX-16; player.z = SPZ; player.yaw = Math.PI/2; player.dive = 0;
+  setupSportStage(save.stages.sp3 ? 'sp4' : save.stages.sp2 ? 'sp3' : save.stages.sp1 ? 'sp2' : 'sp1');
 }
 function addSolidBox(x, z, w, d) {
   walls.push({ x1:x-w/2, z1:z-d/2, x2:x+w/2, z2:z-d/2 });
@@ -4143,7 +4176,7 @@ function loop(now) {
       ((keys.KeyW||keys.KeyS||keys.KeyA||keys.KeyD) ? 1 : 0)); updateGhosts(dt); updateMice(dt);
     updateProps(dt); updateShots(dt); updatePuffs(dt); updateCrystals(dt); updateRain(dt); updatePool(dt); updateAirFlow(dt);
     updateKeyItem(dt); checkPoolDone(); updateSpectre(dt); updateLibrary(dt);
-    updateVanished(dt); updateMouseHunt(dt); updateChute(dt); updateSpider(dt); updateGreenhouse(dt); updateGates(dt); updateCellarExit(dt); updateZevaka(dt); updateOrx(dt); updateSport(dt);
+    updateVanished(dt); updateMouseHunt(dt); updateChute(dt); updateSpider(dt); updateGreenhouse(dt); updateGates(dt); updateCellarExit(dt); updateZevaka(dt); updateOrx(dt); updateSport(dt); updateSportDoor(dt);
     if (msgT > 0) { msgT -= dt; if (msgT <= 0) $('bigMsg').style.opacity = 0; }
     if (subT > 0) { subT -= dt; if (subT <= 0) $('subs').classList.add('hidden'); }
   }
