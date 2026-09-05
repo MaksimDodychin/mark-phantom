@@ -144,7 +144,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#1b2138">
-  <script>window.__APP_VER = "684e1e833a";</script>
+  <script>window.__APP_VER = "c94bb5bfb6";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -322,6 +322,9 @@ const GHOSTS = {
   zhuzha:  { name:'Жужжа',       color:0xfacc15, hp: 46, speed:4.2, damage:1, possess:0.1 },
   plesnyak:{ name:'Плесняк',     color:0x7c9070, hp: 96, speed:1.0, damage:1, possess:0.6 },
   blik2:   { name:'Блик…?',      color:0x7dd3fc, hp: 64, speed:3.4, damage:0, possess:0.15, шар:true, хмурый:true },
+  loza2:   { name:'Лоза-старшая',   color:0x4d7c0f, hp:150, speed:1.9, damage:1, possess:0, scale:1.5 },
+  zhuzha2: { name:'Жужжа-королева', color:0xeab308, hp:110, speed:4.6, damage:1, possess:0, scale:1.25 },
+  plesnyak2:{name:'Плесняк-великан',color:0x57624e, hp:230, speed:0.95,damage:1, possess:0, scale:1.8 },
 };
 
 /* ══ 💾 ФАЙЛЫ · 🎚 СЛОЖНОСТЬ · ⬆️ УЛУЧШЕНИЯ · 🗄 ХРАНИЛИЩЕ · 🎬 ЭТАПЫ ══ */
@@ -360,6 +363,9 @@ const GHOST_INFO = {
   zhuzha:  { emoji:'🐝', text:'Держала пасеку за оранжереей и всё жужжала себе под нос. Летает быстрее всех и петляет, будто пчела над цветком. Поймать её — дело удачи и терпения.' },
   plesnyak:{ emoji:'🍄', text:'Не жил в поместье вовсе — завёлся сам, от сырости, когда сломался насос. Медленный, тяжёлый и очень живучий: пока всю трубу не вычистишь, не сдастся.' },
   blik2:   { emoji:'💙', text:'Это НЕ Блик! Это его сводный брат-близнец — их разлучили при рождении. Такой же огонёк, только с хмурой улыбкой. Сначала жил в руинах, а потом нашёл поместье Призраковых — и теперь блуждает у ворот оранжереи.' },
+  loza2:   { emoji:'🌿', text:'ЛОЗА-СТАРШАЯ — первый страж ночного сада. Старшая сестра Лозы: при жизни держала самый строгий сад в округе и НИКОМУ не разрешала рвать цветы. Особенно ночью.' },
+  zhuzha2: { emoji:'🐝', text:'ЖУЖЖА-КОРОЛЕВА — второй страж. Королева той самой пасеки, где работала Жужжа. Летает вдвое быстрее и очень злится, когда трогают её ночные цветы.' },
+  plesnyak2:{emoji:'🍄', text:'ПЛЕСНЯК-ВЕЛИКАН — третий страж. Вырос в темноте ночной оранжереи, где сырость гуще всего. Огромный и неторопливый: спешить ему некуда, а тебе — придётся.' },
   zevaka:  { emoji:'🌺', text:'ЗЕВАКА. Изначально это был сосед Фантомовых — великий учёный ботаники. Когда он стал призраком, он начал вселяться в растения, чтобы узнать, каково это — быть растением.' },
   sportsman:{ emoji:'🎳', text:'СПОРТСМЕН. Тоже сосед Фантомовых — знаменитый спортсмен. Даже после смерти он не бросил заниматься спортом. Ждёт тебя на спортивном участке — в боулинге.' },
   spider:  { emoji:'🕷', text:'МОХНОНОГ — подвальный призрак. Из питомцев у него только пауки да крысы. Смешное: при жизни у него была арахнофобия и мусофобия — боязнь пауков и боязнь мышей. Досталось же ему после смерти.' },
@@ -380,9 +386,9 @@ const МИРЫ = [
   { id:'oranj', name:'🌺 Оранжерея', desc:'Заросшие цветы Фантомовых',
     stages:[
       { id:'or1', name:'🔧 Насос и водопровод', desc:'Найти рукоятку и пустить воду' },
-      { id:'or2', name:'🔑 Ключи от ворот',     desc:'Их растащили Домоседы', soon:true },
-      { id:'or3', name:'🌙 Ночь в оранжерее',   desc:'Три средних босса', soon:true },
-      { id:'or4', name:'🌿 Теплица-лабиринт',   desc:'Подрезать лианы выдувом', soon:true },
+      { id:'or2', name:'🔑 Ключи от ворот',     desc:'Их растащили Домоседы по бочкам' },
+      { id:'or3', name:'🌙 Ночь в оранжерее',   desc:'Три ночных стража по очереди' },
+      { id:'or4', name:'🌿 Теплица-лабиринт',   desc:'Подрезать лианы выдувом' },
       { id:'or5', name:'🌺 Зевака — БОСС',      desc:'Мухоловка бьёт головой — увернись и стреляй' },
     ] },
   { id:'sport', name:'🏀 Спортивный участок', desc:'Бейсбол, баскетбол, футбол, мини-гольф',
@@ -940,7 +946,7 @@ const bag = { kitchen:false, pool:false, lib:false };   // 🔑 найденны
 let keyItem = null;                          // ключ, который надо подобрать
 let tool = null;                     // null | 'blower' | 'vac'
 let hasKey = false, doorOpen = false, hasSpectre = false, spectreOn = false, laundryOpen = false;
-const ГРАНИЦЫ_ДОМА = { x1:-33, x2:45, z1:-78.5, z2:45 };
+const ГРАНИЦЫ_ДОМА = { x1:-33, x2:45, z1:-100.5, z2:45 };   // −100.5: ночная оранжерея и лабиринт
 let границы = { ...ГРАНИЦЫ_ДОМА };
 let held = [];                       // крупные предметы, застрявшие в трубе (1 или 2 с улучшением)
 let ghosts = [], mice = [], props = [], pickups = [], shots = [];
@@ -1542,7 +1548,10 @@ function buildGreenhouse() {
   // стены-стёкла и пол
   const пол = new THREE.Mesh(new THREE.BoxGeometry(22, 0.3, 30), M.stone);
   пол.position.set(21, -0.15, -64); пол.receiveShadow = true; world.add(пол);
-  wallSeg(10, -49, 10, -79, 7); wallSeg(32, -49, 32, -79, 7); wallSeg(10, -79, 32, -79, 7);
+  wallSeg(10, -49, 10, -79, 7); wallSeg(32, -49, 32, -79, 7);
+  // задняя стена — с воротами в НОЧНУЮ оранжерею (этап «Ключи от ворот», Марк 05.09)
+  wallSeg(10, -79, 18.4, -79, 7); wallSeg(23.6, -79, 32, -79, 7);
+  buildNightWing();
   for (let i = 0; i < 8; i++) {                       // стеклянная крыша-скат
     const п = new THREE.Mesh(new THREE.BoxGeometry(22, 0.16, 3.6), стекло);
     п.position.set(21, 7.2, -50 - i*3.7); п.rotation.x = 0.12; world.add(п);
@@ -1601,13 +1610,199 @@ function addSolidBox(x, z, w, d) {
   walls.push({ x1:x-w/2, z1:z-d/2, x2:x+w/2, z2:z-d/2 });
   walls.push({ x1:x-w/2, z1:z+d/2, x2:x+w/2, z2:z+d/2 });
 }
+
+/* ═══ ОРАНЖЕРЕЯ, этапы 2–4 (замысел Марка 05.09): Домоседы с ключами → ночная
+   оранжерея с тремя боссами → теплица-лабиринт с лианами. ═══ */
+let orx = null;
+function resetOrx() { orx = { ключи:0, боссы:0, боссЖдёт:false, лианы:[], цветок:null,
+                              ворота2:null, дверьЛаб:null, started2:false, started3:false }; }
+resetOrx();
+function изгородь(x1, z1, x2, z2) {                 // живая стена-кустарник (и в walls)
+  const гориз = Math.abs(z2 - z1) < 0.01, len = Math.hypot(x2-x1, z2-z1);
+  const зелень = new THREE.MeshStandardMaterial({ color:0x2f5d31, roughness:0.95 });
+  const m = new THREE.Mesh(new THREE.BoxGeometry(гориз ? len : 0.9, 2.3, гориз ? 0.9 : len), зелень);
+  m.position.set((x1+x2)/2, 1.15, (z1+z2)/2); m.castShadow = true; world.add(m);
+  for (let i = 0; i < Math.floor(len/1.4); i++) {   // пухлые макушки, чтобы не было «коробок»
+    const ш = new THREE.Mesh(new THREE.SphereGeometry(0.62, 8, 6), зелень);
+    const t = (i + 0.5) / Math.floor(len/1.4);
+    ш.position.set(x1 + (x2-x1)*t, 2.3, z1 + (z2-z1)*t); ш.scale.y = 0.75; world.add(ш);
+  }
+  walls.push({ x1, z1, x2, z2 });
+}
+function restartOrx() {                             // сброс этапов 2–4 при новом старте игры
+  if (!orx) return;
+  orx.ключи = 0; orx.боссы = 0; orx.started2 = false; orx.started3 = false;
+  const в = orx.ворота2;
+  if (в && в.открыты) { в.открыты = false;
+    в.wall.x1 = 18.5; в.wall.z1 = -79; в.wall.x2 = 23.5; в.wall.z2 = -79;
+    в.mesh.rotation.y = 0; в.mesh.position.set(21, 2.3, -79); в.замок.visible = true; }
+  const д = orx.дверьЛаб;
+  if (д && д.открыта) { д.открыта = false;
+    д.wall.x1 = 10; д.wall.z1 = -87; д.wall.x2 = 10; д.wall.z2 = -91;
+    д.mesh.rotation.y = 0; д.mesh.position.set(10, 2.1, -89); }
+  orx.лианы.forEach(л => { л.hp = 0;
+    if (л.cut) { л.cut = false; world.add(л.mesh);
+      л.wall.x1 = л.x - 1.5; л.wall.x2 = л.x + 1.5; л.wall.z1 = л.wall.z2 = л.z; } });
+  if (orx.цветок && orx.цветок.взят) { orx.цветок.взят = false; orx.цветок.mesh.position.y = 0; }
+}
+function лиана(x, z, гориз) {                       // 🌿 занавес из стеблей — режется ВЫДУВОМ
+  const g = new THREE.Group();
+  const мат = new THREE.MeshStandardMaterial({ color:0x65a30d, roughness:0.9,
+    emissive:0x2f4f0d, emissiveIntensity:0.35 });
+  for (let i = 0; i < 7; i++) {
+    const с = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.1, 2.6, 6), мат);
+    с.position.set(гориз ? -1.2 + i*0.4 : 0, 1.3, гориз ? 0 : -1.2 + i*0.4);
+    с.rotation.z = rnd(-0.12, 0.12); g.add(с);
+    const л = new THREE.Mesh(new THREE.SphereGeometry(0.18, 6, 5), мат);
+    л.scale.set(1.6, 0.4, 1); л.position.set(с.position.x, rnd(0.7, 2.2), с.position.z); g.add(л);
+  }
+  g.position.set(x, 0, z); world.add(g);
+  const w = гориз ? { x1:x-1.5, z1:z, x2:x+1.5, z2:z } : { x1:x, z1:z-1.5, x2:x, z2:z+1.5 };
+  walls.push(w);
+  orx.лианы.push({ x, z, mesh:g, wall:w, hp:0, cut:false });
+}
+function buildNightWing() {
+  // 🚪 ворота в ночную часть (закрыты, откроются тремя ключами)
+  const створка = new THREE.Mesh(new THREE.BoxGeometry(5.1, 4.6, 0.3),
+    new THREE.MeshStandardMaterial({ color:0x3f4a3a, metalness:0.6, roughness:0.4 }));
+  створка.position.set(21, 2.3, -79); world.add(створка);
+  const замок = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.12, 8, 16),
+    new THREE.MeshStandardMaterial({ color:0xd8c078, metalness:0.9, roughness:0.3,
+      emissive:0x8a6d1b, emissiveIntensity:0.8 }));
+  замок.position.set(21, 2.2, -78.7); world.add(замок);
+  const стенка = { x1:18.5, z1:-79, x2:23.5, z2:-79 };
+  walls.push(стенка);
+  orx.ворота2 = { mesh:створка, замок, wall:стенка, открыты:false };
+  // 🌙 НОЧНАЯ ОРАНЖЕРЕЯ: тёмный зал за воротами, здесь живут три босса
+  const тьма = new THREE.Mesh(new THREE.BoxGeometry(22, 0.3, 20),
+    new THREE.MeshStandardMaterial({ color:0x1a2418, roughness:1 }));
+  тьма.position.set(21, -0.15, -89); тьма.receiveShadow = true; world.add(тьма);
+  wallSeg(32, -79, 32, -99, 7); wallSeg(10, -99, 32, -99, 7);
+  wallSeg(10, -79, 10, -87, 7); wallSeg(10, -91, 10, -99, 7);   // проём в лабиринт
+  for (const [gx, gz] of [[13,-82],[29,-84],[14,-95],[28,-96],[21,-93]]) {
+    const гриб = new THREE.Group();                 // светящиеся грибы — единственный свет
+    const нож = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.16, 0.6, 8),
+      new THREE.MeshStandardMaterial({ color:0xd8d0b8, roughness:0.9 }));
+    нож.position.y = 0.3; гриб.add(нож);
+    const шляпа = new THREE.Mesh(new THREE.SphereGeometry(0.34, 10, 8, 0, 6.283, 0, Math.PI/2),
+      new THREE.MeshStandardMaterial({ color:0x84cc16, emissive:0xa3e635, emissiveIntensity:1.4 }));
+    шляпа.position.y = 0.6; гриб.add(шляпа);
+    const св = new THREE.PointLight(0xa3e635, 3, 9); св.position.y = 1; гриб.add(св);
+    гриб.position.set(gx, 0, gz); world.add(гриб);
+  }
+  // дверь из ночного зала в лабиринт (откроется после трёх боссов)
+  const дл = new THREE.Mesh(new THREE.BoxGeometry(0.3, 4.2, 4.1),
+    new THREE.MeshStandardMaterial({ color:0x4a5568, metalness:0.5, roughness:0.5 }));
+  дл.position.set(10, 2.1, -89); world.add(дл);
+  const wл = { x1:10, z1:-87, x2:10, z2:-91 };
+  walls.push(wл);
+  orx.дверьЛаб = { mesh:дл, wall:wл, открыта:false };
+  // 🌿 ТЕПЛИЦА-ЛАБИРИНТ: изгороди + лианы, в конце — золотой цветок
+  const полЛ = new THREE.Mesh(new THREE.BoxGeometry(22, 0.3, 20),
+    new THREE.MeshStandardMaterial({ color:0x2c3a24, roughness:1 }));
+  полЛ.position.set(-3, -0.15, -89); полЛ.receiveShadow = true; world.add(полЛ);
+  wallSeg(-14, -79, 10, -79, 7); wallSeg(-14, -99, 10, -99, 7); wallSeg(-14, -79, -14, -99, 7);
+  изгородь(-14, -83.5, 3, -83.5); лиана(4.5, -83.5, true); изгородь(6, -83.5, 10, -83.5);   // ряд 1: проход справа
+  изгородь(-7, -88, 10, -88);     лиана(-8.5, -88, true); изгородь(-14, -88, -10, -88);     // ряд 2: проход слева
+  изгородь(-14, -92.5, -6, -92.5); лиана(-4.5, -92.5, true); изгородь(-3, -92.5, 10, -92.5); // ряд 3: центр
+  const свЛ = new THREE.PointLight(0x86efac, 1.6, 26); свЛ.position.set(-3, 6, -89); world.add(свЛ);
+  // 🌼 золотой цветок Зеваки в дальнем углу
+  const цв = new THREE.Group();
+  const ст = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 1.4, 8),
+    new THREE.MeshStandardMaterial({ color:0x4d7c0f, roughness:0.9 }));
+  ст.position.y = 0.7; цв.add(ст);
+  for (let i = 0; i < 8; i++) {
+    const леп = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6),
+      new THREE.MeshStandardMaterial({ color:0xfde047, emissive:0xf59e0b, emissiveIntensity:1.3 }));
+    леп.scale.set(1.7, 0.4, 0.8); леп.rotation.y = i/8*6.28;
+    леп.position.set(Math.cos(i/8*6.28)*0.34, 1.5, Math.sin(i/8*6.28)*0.34); цв.add(леп);
+  }
+  const свЦ = new THREE.PointLight(0xfde047, 5, 12); свЦ.position.y = 1.6; цв.add(свЦ);
+  цв.position.set(-11, 0, -96.5); world.add(цв);
+  orx.цветок = { x:-11, z:-96.5, mesh:цв, взят:false };
+  // 🛢 бочки в главной оранжерее — в них спрячутся Домоседы с ключами
+  addProp('бочка', 12.3, -53, 1.2, 1.6, 1.2, true);
+  addProp('бочка', 29.6, -60, 1.2, 1.6, 1.2, true);
+  addProp('бочка', 12.6, -71, 1.2, 1.6, 1.2, true);
+}
+function открытьНочныеВорота(тихо) {
+  const в = orx.ворота2; if (!в || в.открыты) return;
+  в.открыты = true; в.wall.x1 = в.wall.x2 = 99; в.wall.z1 = в.wall.z2 = 99;
+  в.mesh.rotation.y = 1.3; в.mesh.position.x += 2.2; в.замок.visible = false;
+  if (тихо) return;
+  bigMsg('🚪 ВОРОТА ОТКРЫТЫ!\nза ними — ночная оранжерея', 3.4, '#a3e635');
+  say('💙 Дом', 'Скри-и-ип… Там темно. И кто-то большой ждёт.', 6);
+  task = '🌙 Войди в ночную оранжерею'; updateHud();
+}
+function открытьЛабиринт(тихо) {
+  const д = orx.дверьЛаб; if (!д || д.открыта) return;
+  д.открыта = true; д.wall.x1 = д.wall.x2 = 99; д.wall.z1 = д.wall.z2 = 99;
+  д.mesh.rotation.y = 1.2; д.mesh.position.z += 1.8;
+  if (тихо) return;
+  bigMsg('🌿 ОТКРЫЛАСЬ ТЕПЛИЦА-ЛАБИРИНТ!', 3, '#a3e635');
+  say('💙 Дом', 'В лабиринте проходы заросли лианами. Их режет только выдув.', 7);
+  task = '🌿 Пройди лабиринт до золотого цветка'; updateHud();
+}
+function startOr2() {
+  if (orx.started2 || save.stages.or2 || state !== 'play') return;
+  orx.started2 = true;
+  const бочки = props.filter(p => p.label === 'бочка' && p.z < -49 && !p.possessedBy);
+  бочки.slice(0, 3).forEach((p, i) => setTimeout(() => {
+    if (state !== 'play') return;
+    const g = spawnGhost('domosed', p.x, p.z);
+    g.gateKey = true; p.possessedBy = g; g.inProp = p; g.propT = 99; g.mesh.visible = false;
+  }, 400 + i*900));
+  bigMsg('🔑 ДОМОСЕДЫ УКРАЛИ КЛЮЧИ ОТ ВОРОТ!\nони попрятались в бочки', 4, '#60a5fa');
+  say('💙 Дом', 'Слышишь звон? Три Домоседа растащили ключи и засели в бочках. Выдувай и лови!', 8);
+  task = '🔑 Ключи от ворот: 0/3 — выбей Домоседов из бочек';
+  updateHud();
+}
+function startOr3боссы() {
+  if (orx.started3 || save.stages.or3 || state !== 'play') return;
+  orx.started3 = true; orx.боссы = 0;
+  Snd.music(true, 'boss');
+  bigMsg('🌙 НОЧЬ В ОРАНЖЕРЕЕ\nтри стража выходят по очереди!', 3.6, '#a3e635');
+  say('💙 Дом', 'Это стражи ночного сада. Победи всех троих!', 6);
+  setTimeout(() => { if (state === 'play') следующийБосс(); }, 2200);
+}
+const НОЧНЫЕ_БОССЫ = ['loza2', 'zhuzha2', 'plesnyak2'];
+function следующийБосс() {
+  if (orx.боссы >= 3 || state !== 'play') return;
+  const kind = НОЧНЫЕ_БОССЫ[orx.боссы];
+  новыйВид(kind, 21, -92, 0);
+  task = '🌙 Стражи ночи: ' + orx.боссы + '/3 — бей ' + GHOSTS[kind].name.toUpperCase();
+  updateHud();
+}
+function updateOrx(dt) {
+  if (!orx || !player) return;
+  // вход в ночной зал запускает боссов
+  if (orx.ворота2 && orx.ворота2.открыты && !save.stages.or3 && !orx.started3 &&
+      player.z < -80 && player.x > 10) startOr3боссы();
+  // золотой цветок в конце лабиринта = этап 4 пройден
+  const ц = orx.цветок;
+  if (ц && !ц.взят && save.stages.or3 &&
+      Math.hypot(ц.x-player.x, ц.z-player.z) < 2.2) {
+    ц.взят = true; ц.mesh.position.y = -20;
+    save.stages.or4 = true; saveNow();
+    Snd.catchWin();
+    bigMsg('🌼 ЗОЛОТОЙ ЦВЕТОК ЗЕВАКИ!\nв большой оранжерее что-то зашевелилось…', 4, '#fde047');
+    say('💙 Дом', 'Этот цветок разбудил Зеваку. Возвращайся к большой грядке!', 7);
+    task = '🌺 Вернись в большую оранжерею — Зевака ждёт';
+    updateHud();
+  }
+  if (ц && !ц.взят) ц.mesh.rotation.y += dt * 0.8;
+}
 function updateGreenhouse(dt) {
   if (!насос) return;
-  // 🌺 всех жильцов переловил — из большой грядки поднимается Зевака
+  // 🔑 переловил жильцов → Домоседы крадут ключи (этап 2, Марк 05.09);
+  // 🌺 Зевака выходит ТОЛЬКО после золотого цветка из лабиринта (этап 4)
   if (насос.включён && !zevaka && !save.stages.or5 && !ghDone) {
     const живы = ghosts.filter(g => g.alive && ['loza','zhuzha','plesnyak'].includes(g.kind)).length;
     const пойманы = ['loza','zhuzha','plesnyak'].every(k => (save.seen[k] | 0) > 0);
-    if (!живы && пойманы) { ghDone = true; setTimeout(() => { if (state === 'play') spawnZevaka(21, -73); }, 1500); }
+    if (!живы && пойманы && !save.stages.or2 && !orx.started2)
+      setTimeout(() => { if (state === 'play') startOr2(); }, 1500);
+    if (!живы && пойманы && save.stages.or4)
+      { ghDone = true; setTimeout(() => { if (state === 'play') spawnZevaka(21, -73); }, 1500); }
   }
   насос.колесо.rotation.z += насос.включён ? dt*3 : 0;
   насос.лампа.material.emissive.setHex(насос.включён ? 0x22c55e : 0xef4444);
@@ -2291,6 +2486,7 @@ let ghostSeq = 0;
 function spawnGhost(kind, x, z) {
   const info = GHOSTS[kind];
   const mesh = makeGhostMesh(info.color, info.шар, info.хмурый);
+  if (info.scale) mesh.scale.setScalar(info.scale);  // 🌙 ночные стражи крупнее обычных
   mesh.position.set(x, 0.95, z); world.add(mesh);   // gh.y — середина тела, меш ниже на 0.55
   const gh = { id: ++ghostSeq, kind, info, mesh, x, y: 1.5, z, hp: info.hp, maxhp: info.hp, alive: true,
                homeX: x, homeZ: z,                 // 🏠 место рождения — призрак держится рядом
@@ -2419,6 +2615,7 @@ function startGame(stageId) {
   if (zevaka) { world.remove(zevaka.mesh); zevaka = null; }
   ghDone = false;
   if (насос) { насос.включён = false; насос.есть = false; }
+  restartOrx();
   растения.forEach(р => { р.цель = 0.28; р.mesh.scale.setScalar(0.28); р.цветок.visible = false; });
   if (spider) { world.remove(spider.mesh); spider = null; }
   cellar = null; границы = { ...ГРАНИЦЫ_ДОМА };
@@ -2488,6 +2685,23 @@ function skipTo(id) {
     setTimeout(() => { if (state === 'play') spawnZevaka(21, -73); }, 1200); }
   if (id === 'or1') { доБиблиотеки(); дайСпектр(); laundryOpen = true; openGreenhouse();
     player.x = 21; player.z = -54; player.yaw = Math.PI; }
+  const жильцыПойманы = () => ['loza','zhuzha','plesnyak'].forEach(k => {
+    if (!(save.seen[k] | 0)) save.seen[k] = 1; });
+  if (id === 'or2') { доБиблиотеки(); дайСпектр(); laundryOpen = true; openGreenhouse();
+    включитьНасос(); жильцыПойманы();
+    player.x = 21; player.z = -58; player.yaw = Math.PI;
+    setTimeout(() => { if (state === 'play') startOr2(); }, 1200); }
+  if (id === 'or3') { доБиблиотеки(); дайСпектр(); laundryOpen = true; openGreenhouse();
+    включитьНасос(); жильцыПойманы(); save.stages.or2 = true;
+    открытьНочныеВорота(true);
+    player.x = 21; player.z = -76; player.yaw = Math.PI;
+    task = '🌙 Войди в ночную оранжерею за воротами'; }
+  if (id === 'or4') { доБиблиотеки(); дайСпектр(); laundryOpen = true; openGreenhouse();
+    включитьНасос(); жильцыПойманы(); save.stages.or2 = true; save.stages.or3 = true;
+    открытьНочныеВорота(true); открытьЛабиринт(true);
+    player.x = 12; player.z = -89; player.yaw = Math.PI/2;
+    task = '🌿 Пройди лабиринт до золотого цветка';
+    hint('Проходы заросли лианами — режь их выдувом (ПКМ)'); }
   if (id === 'lib') { дать(); пылесос(); bag.kitchen = true; bag.pool = true; bag.lib = true;
     const dl = lockedDoors.find(x => x.key === 'lib');
     if (dl && !dl.open) { player.x = 0; player.z = -21; interact(); }
@@ -3100,6 +3314,28 @@ function catchGhost(gh) {
   bigMsg('👻 ' + gh.info.name.toUpperCase() + ' ПОЙМАН!', 2, '#7dd3fc');
   for (let i = 0; i < 20; i++) puff(gh.x, gh.y, gh.z, gh.info.color);
   if (gh.inProp) { gh.inProp.possessedBy = null; gh.inProp = null; }
+  // 🔑 Домосед с ключом от ночных ворот (этап «Ключи от ворот»)
+  if (gh.gateKey) {
+    orx.ключи++;
+    if (orx.ключи >= 3) {
+      save.stages.or2 = true; saveNow();
+      bigMsg('🔑 ВСЕ ТРИ КЛЮЧА У ТЕБЯ!', 2.6, '#fde047');
+      setTimeout(() => { if (state === 'play') открытьНочныеВорота(); }, 1800);
+    } else {
+      bigMsg('🔑 КЛЮЧ ' + orx.ключи + '/3!', 2, '#fde047');
+      task = '🔑 Ключи от ворот: ' + orx.ключи + '/3';
+    }
+  }
+  // 🌙 стражи ночного сада выходят по очереди
+  if (НОЧНЫЕ_БОССЫ.includes(gh.kind) && orx.started3 && !save.stages.or3) {
+    orx.боссы++;
+    if (orx.боссы >= 3) {
+      save.stages.or3 = true; saveNow(); Snd.music(true);
+      bigMsg('🌙 ВСЕ СТРАЖИ ПОБЕЖДЕНЫ!', 3, '#a3e635');
+      setTimeout(() => { if (state === 'play') открытьЛабиринт(); }, 1800);
+    } else setTimeout(() => { if (state === 'play') {
+      bigMsg('👀 ВЫХОДИТ СЛЕДУЮЩИЙ СТРАЖ…', 2, '#a3e635'); следующийБосс(); } }, 2200);
+  }
   updateHud();
   // ⚠️ Раньше здесь игра ОБЪЯВЛЯЛА ФИНАЛ, едва кончались призраки в комнате, — и всё
   // дальше (обыск, двери, труба) молча переставало работать. Теперь просто хвалим и подсказываем.
@@ -3299,6 +3535,12 @@ function updateBeam(dt) {
     const ww = inBeam(w.x, w.y, w.z);
     if (ww > bestW) { bestW = ww; best = { type:'web', obj:w }; }
   }
+  // 4) 🌿 лианы лабиринта — режутся только выдувом
+  if (!best) for (const л of orx.лианы) {
+    if (л.cut) continue;
+    const ww = inBeam(л.x, 1.3, л.z);
+    if (ww > bestW) { bestW = ww; best = { type:'liana', obj:л }; }
+  }
   // 4) крупные предметы — их можно засосать в трубу
   if (!best && mode === 'suck' && held.length < tubeSize()) for (const p of props) {
     if (!p.big || p.possessedBy || p.inNozzle) continue;
@@ -3379,6 +3621,21 @@ function updateBeam(dt) {
     w.t += dt * bestW * (mode === 'blow' ? 1.6 : 1.0);
     w.mesh.rotation.z = Math.sin(time*20)*0.05*w.t;
     if (w.t > 0.6) tearWeb(w);
+  }
+  else if (best.type === 'liana') {
+    const л = best.obj;
+    $('ghostBar').style.display = 'none';
+    if (mode === 'blow') {
+      л.hp += dt * bestW;
+      л.mesh.rotation.z = Math.sin(time*22)*0.1*Math.min(1, л.hp);
+      if (л.hp > 1.1) {
+        л.cut = true; л.wall.x1 = л.wall.x2 = 99; л.wall.z1 = л.wall.z2 = 99;
+        world.remove(л.mesh);
+        for (let i = 0; i < 14; i++) puff(л.x, 1 + rnd(0, 1.2), л.z, 0x84cc16);
+        Snd.ejectSfx();
+        bigMsg('🌿 ЛИАНА СРЕЗАНА — ПРОХОД ОТКРЫТ!', 2, '#a3e635');
+      }
+    } else if (Math.random() < 0.04) bigMsg('🌿 Лиану режет только 💨 ВЫДУВ', 1.0, '#a3e635');
   }
   else if (best.type === 'mouse') {
     const m = best.obj;
@@ -3669,7 +3926,7 @@ function loop(now) {
       ((keys.KeyW||keys.KeyS||keys.KeyA||keys.KeyD) ? 1 : 0)); updateGhosts(dt); updateMice(dt);
     updateProps(dt); updateShots(dt); updatePuffs(dt); updateCrystals(dt); updateRain(dt); updatePool(dt); updateAirFlow(dt);
     updateKeyItem(dt); checkPoolDone(); updateSpectre(dt); updateLibrary(dt);
-    updateVanished(dt); updateMouseHunt(dt); updateChute(dt); updateSpider(dt); updateGreenhouse(dt); updateGates(dt); updateCellarExit(dt); updateZevaka(dt);
+    updateVanished(dt); updateMouseHunt(dt); updateChute(dt); updateSpider(dt); updateGreenhouse(dt); updateGates(dt); updateCellarExit(dt); updateZevaka(dt); updateOrx(dt);
     if (msgT > 0) { msgT -= dt; if (msgT <= 0) $('bigMsg').style.opacity = 0; }
     if (subT > 0) { subT -= dt; if (subT <= 0) $('subs').classList.add('hidden'); }
   }
@@ -3816,6 +4073,26 @@ window.__dbg = {
                  player.x = g.x; player.z = g.z + 2.4; this.look(g.x, g.z, g.y); return true; },
   hurtMe(){ const g = noHurt; noHurt = false; hurt(1); noHurt = g; return hearts; },
   god(on){ noHurt = !!on; return noHurt; },
+  // ── оранжерея 2–4 ──
+  get orx(){ return { ключи:orx.ключи, боссы:orx.боссы,
+    ворота:!!(orx.ворота2 && orx.ворота2.открыты), лаб:!!(orx.дверьЛаб && orx.дверьЛаб.открыта),
+    лианыЦелы:orx.лианы.filter(л => !л.cut).length,
+    цветок:orx.цветок ? orx.цветок.взят : null }; },
+  get alive(){ return ghosts.filter(g => g.alive).map(g => ({ kind:g.kind, вПредмете:!!g.inProp,
+    x:+g.x.toFixed(1), z:+g.z.toFixed(1), hp:Math.round(g.hp) })); },
+  get zevakaAlive(){ return !!zevaka; },
+  get barrels(){ return props.filter(p => p.label === 'бочка').map(p => ({ x:p.x, z:p.z,
+    занята:!!p.possessedBy, ejectT:+(p.ejectT||0).toFixed(2) })); },
+  toBarrel(){ const p = props.find(p2 => p2.label === 'бочка' && p2.possessedBy);
+    if (!p) return null; player.x = p.x; player.z = p.z + 2.6; this.look(p.x, p.z, 1.0); return true; },
+  toKind(kind){ const g = ghosts.find(g2 => g2.alive && g2.kind === kind && !g2.inProp);
+    if (!g) return null; player.x = g.x; player.z = g.z + 2.4; this.look(g.x, g.z, g.y); return true; },
+  toGateGhost(){ const g = ghosts.find(g2 => g2.alive && g2.gateKey && !g2.inProp);
+    if (!g) return null; player.x = g.x; player.z = g.z + 2.4; this.look(g.x, g.z, g.y); return true; },
+  toLiana(){ const л = orx.лианы.find(л2 => !л2.cut); if (!л) return null;
+    player.x = л.x; player.z = л.z + 2.6; this.look(л.x, л.z, 1.3); return true; },
+  toFlower(){ if (!orx.цветок) return null;
+    player.x = orx.цветок.x; player.z = orx.цветок.z; return true; },
 };
 </script>
 
