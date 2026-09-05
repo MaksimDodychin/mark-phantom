@@ -144,7 +144,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#1b2138">
-  <script>window.__APP_VER = "c94bb5bfb6";</script>
+  <script>window.__APP_VER = "75caaecb19";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -322,6 +322,7 @@ const GHOSTS = {
   zhuzha:  { name:'Жужжа',       color:0xfacc15, hp: 46, speed:4.2, damage:1, possess:0.1 },
   plesnyak:{ name:'Плесняк',     color:0x7c9070, hp: 96, speed:1.0, damage:1, possess:0.6 },
   blik2:   { name:'Блик…?',      color:0x7dd3fc, hp: 64, speed:3.4, damage:0, possess:0.15, шар:true, хмурый:true },
+  sportsman:{name:'Спортсмен',      color:0xf97316, hp:100, speed:2.6, damage:1, possess:0, scale:1.6 },
   loza2:   { name:'Лоза-старшая',   color:0x4d7c0f, hp:150, speed:1.9, damage:1, possess:0, scale:1.5 },
   zhuzha2: { name:'Жужжа-королева', color:0xeab308, hp:110, speed:4.6, damage:1, possess:0, scale:1.25 },
   plesnyak2:{name:'Плесняк-великан',color:0x57624e, hp:230, speed:0.95,damage:1, possess:0, scale:1.8 },
@@ -391,13 +392,12 @@ const МИРЫ = [
       { id:'or4', name:'🌿 Теплица-лабиринт',   desc:'Подрезать лианы выдувом' },
       { id:'or5', name:'🌺 Зевака — БОСС',      desc:'Мухоловка бьёт головой — увернись и стреляй' },
     ] },
-  { id:'sport', name:'🏀 Спортивный участок', desc:'Бейсбол, баскетбол, футбол, мини-гольф',
+  { id:'sport', name:'🏀 Спортивный участок', desc:'Футбол, баскетбол, боулинг и босс-Спортсмен',
     stages:[
-      { id:'sp1', name:'🧺 Раздевалка',  desc:'Найти инвентарь и включить свет', soon:true },
-      { id:'sp2', name:'🏀 Баскетбол',   desc:'Забросить мяч с призраком в кольцо', soon:true },
-      { id:'sp3', name:'⚽ Футбол',      desc:'Обыграть вратаря-призрака', soon:true },
-      { id:'sp4', name:'⛳ Мини-гольф',  desc:'Загнать шар в лунку выдувом', soon:true },
-      { id:'sp5', name:'🎳 Боулинг — БОСС', desc:'Страйк — призрак вылетает!', soon:true },
+      { id:'sp1', name:'⚽ Футбол',      desc:'Засоси мяч и забей 3 гола в ворота' },
+      { id:'sp2', name:'🏀 Баскетбол',   desc:'Заброс мяча в кольцо — 3 попадания' },
+      { id:'sp3', name:'🎳 Боулинг',     desc:'Сбей все кегли — 3 страйка' },
+      { id:'sp4', name:'🏆 Спортсмен — БОСС', desc:'Стреляй по нему мячами, пока не сдастся' },
     ] },
   { id:'pool', name:'🏊 Бассейн', desc:'Сюда Фантомовы ходили купаться',
     stages:[
@@ -1104,6 +1104,7 @@ function buildInterior() {
   buildLaundry();
   buildGreenhouse();
   buildGates();
+  buildSportGround();
   lockedDoors.push({ mesh:kitDoor, x:9.9, z:-4.2, key:'kitchen', wall:kitWall,
                      text:'Кухня заперта. Ключ где-то в доме — обыщи мебель (E).' });
 
@@ -1791,6 +1792,195 @@ function updateOrx(dt) {
     updateHud();
   }
   if (ц && !ц.взят) ц.mesh.rotation.y += dt * 0.8;
+}
+
+/* ═══════════ 🏀 СПОРТИВНЫЙ УЧАСТОК (замысел Марка 05.09) ═══════════
+   Отдельное МЕСТО далеко от дома (центр SPX,SPZ). Механика: засосать мяч в трубу
+   и ВЫСТРЕЛИТЬ им — в ворота (футбол), в кольцо (баскет), по кеглям (боулинг),
+   по боссу-Спортсмену. Мячи — props с sportBall:true: после выстрела возвращаются
+   на своё поле (а не в дом, куда их сносил общий clamp). */
+const SPX = 150, SPZ = 0;
+let sp = null, sportBalls = [], spArena = {};        // spArena — геометрия (переживает resetSp)
+function resetSp() { sp = { stage:null, goals:0, need:3, target:null, pins:[], boss:null, done:false }; }
+resetSp();
+function makeBall(kind) {
+  const g = new THREE.Group();
+  if (kind === 'foot') {                              // ⚽ бело-чёрный
+    const b = new THREE.Mesh(new THREE.IcosahedronGeometry(0.42, 1),
+      new THREE.MeshStandardMaterial({ color:0xf5f5f5, roughness:0.6 })); g.add(b);
+    const пятна = new THREE.Mesh(new THREE.IcosahedronGeometry(0.30, 0),
+      new THREE.MeshStandardMaterial({ color:0x1a1a1a })); пятна.scale.setScalar(1.35); g.add(пятна);
+  } else if (kind === 'basket') {                     // 🏀 оранжевый с полосами
+    g.add(new THREE.Mesh(new THREE.SphereGeometry(0.42, 16, 12),
+      new THREE.MeshStandardMaterial({ color:0xe2700f, roughness:0.7 })));
+    for (const ax of ['x','z']) { const r = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.02, 6, 24),
+      new THREE.MeshStandardMaterial({ color:0x1a1a1a })); if (ax==='z') r.rotation.y = Math.PI/2; else r.rotation.x = Math.PI/2; g.add(r); }
+  } else {                                            // 🎳 тёмный шар для боулинга
+    g.add(new THREE.Mesh(new THREE.SphereGeometry(0.44, 16, 12),
+      new THREE.MeshStandardMaterial({ color:0x3b1d6e, roughness:0.25, metalness:0.4 })));
+    for (const dx of [-0.1, 0.1]) { const h = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.14, 8),
+      new THREE.MeshStandardMaterial({ color:0x111111 })); h.position.set(dx, 0.36, 0.12); g.add(h); }
+  }
+  return g;
+}
+function addSportBall(kind, x, z) {
+  const g = makeBall(kind); g.position.set(x, 0.42, z); world.add(g);
+  const p = { label: kind==='foot'?'мяч':kind==='basket'?'мяч':'шар', x, z, y:0.42, w:0.9, h:0.9, d:0.9,
+              big:true, mesh:g, mats:[], baseY:0.42, shake:0, possessedBy:null, ejectT:0,
+              searchable:false, searched:false, hides:null, sportBall:true, home:{ x, z } };
+  props.push(p); sportBalls.push(p); return p;
+}
+function голоскакая(){ return sp.need - sp.goals; }
+function buildSportGround() {
+  sportBalls = [];
+  // площадка-газон с разметкой
+  const пол = new THREE.Mesh(new THREE.BoxGeometry(52, 0.3, 34),
+    new THREE.MeshStandardMaterial({ color:0x2f7d34, roughness:1 }));
+  пол.position.set(SPX, -0.15, SPZ); пол.receiveShadow = true; world.add(пол);
+  const кант = new THREE.Mesh(new THREE.TorusGeometry(5, 0.08, 6, 40),
+    new THREE.MeshStandardMaterial({ color:0xffffff })); кант.rotation.x = Math.PI/2; кант.position.set(SPX, 0.02, SPZ); world.add(кант);
+  // забор по периметру (стены-границы)
+  const заб = (x1,z1,x2,z2) => { const len = Math.hypot(x2-x1,z2-z1), гор = Math.abs(z2-z1)<0.1;
+    const m = new THREE.Mesh(new THREE.BoxGeometry(гор?len:0.4, 2.4, гор?0.4:len),
+      new THREE.MeshStandardMaterial({ color:0x9aa3b2, roughness:0.7, metalness:0.3 }));
+    m.position.set((x1+x2)/2, 1.2, (z1+z2)/2); world.add(m); walls.push({ x1,z1,x2,z2 }); };
+  заб(SPX-26, SPZ-17, SPX+26, SPZ-17); заб(SPX-26, SPZ+17, SPX+26, SPZ+17);
+  заб(SPX-26, SPZ-17, SPX-26, SPZ+17); заб(SPX+26, SPZ-17, SPX+26, SPZ+17);
+  // ⚽ ФУТБОЛЬНЫЕ ВОРОТА у дальней стены
+  const gx = SPX+22, стойкаМ = new THREE.MeshStandardMaterial({ color:0xffffff, roughness:0.5 });
+  for (const dz of [-3, 3]) { const st = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 4, 10), стойкаМ);
+    st.position.set(gx, 2, SPZ+dz); world.add(st); }
+  const перекл = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 6.3, 10), стойкаМ);
+  перекл.rotation.x = Math.PI/2; перекл.position.set(gx, 4, SPZ); world.add(перекл);
+  const сетка = new THREE.Mesh(new THREE.PlaneGeometry(6.3, 4),
+    new THREE.MeshStandardMaterial({ color:0xdfe6ee, transparent:true, opacity:0.25, side:THREE.DoubleSide, wireframe:true }));
+  сетка.position.set(gx+0.7, 2, SPZ); сетка.rotation.y = Math.PI/2; world.add(сетка);
+  spArena.goalX = gx; spArena.goalZ = SPZ;
+  // 🏀 БАСКЕТБОЛЬНОЕ КОЛЬЦО у боковой стены
+  const hx = SPX, hz = SPZ+14, hy = 3.6;
+  const щит = new THREE.Mesh(new THREE.BoxGeometry(3, 2, 0.2),
+    new THREE.MeshStandardMaterial({ color:0xf5f5f5 })); щит.position.set(hx, hy+0.9, hz); world.add(щит);
+  const столб = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, hy+2, 10), M.metal);
+  столб.position.set(hx, (hy+2)/2, hz+0.4); world.add(столб);
+  const кольцо = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.06, 8, 22),
+    new THREE.MeshStandardMaterial({ color:0xe2700f, emissive:0x7a2f00, emissiveIntensity:0.5 }));
+  кольцо.rotation.x = Math.PI/2; кольцо.position.set(hx, hy, hz-0.7); world.add(кольцо);
+  spArena.hoop = { x:hx, y:hy, z:hz-0.7, r:0.6, mesh:кольцо };
+  // 🎳 БОУЛИНГ-дорожка у ближней стены — кегли строятся при входе в этап
+  spArena.laneX = SPX-4; spArena.laneZ = SPZ-13; spArena.pinZ = SPZ-16;
+  const дорожка = new THREE.Mesh(new THREE.BoxGeometry(4, 0.05, 8),
+    new THREE.MeshStandardMaterial({ color:0xcaa26a, roughness:0.4 }));
+  дорожка.position.set(SPX-4, 0.04, SPZ-13); world.add(дорожка);
+  // 🏟 стадионные прожекторы по углам — площадка ярко освещена, как ночной матч
+  for (const [dx, dz] of [[-24,-15],[24,-15],[-24,15],[24,15]]) {
+    const мачта = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.28, 12, 8), M.metal);
+    мачта.position.set(SPX+dx, 6, SPZ+dz); world.add(мачта);
+    const блок = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.2, 0.4),
+      new THREE.MeshStandardMaterial({ color:0x22262e })); блок.position.set(SPX+dx*0.92, 12, SPZ+dz*0.92); world.add(блок);
+    for (let i = 0; i < 6; i++) { const лампа = new THREE.Mesh(new THREE.CircleGeometry(0.3, 12),
+      new THREE.MeshStandardMaterial({ color:0xffffff, emissive:0xfff6d0, emissiveIntensity:1.6 }));
+      лампа.position.set(SPX+dx*0.92 - 0.9 + (i%3)*0.9, 12 + (i<3?0.3:-0.3), SPZ+dz*0.92 - Math.sign(dz)*0.22);
+      лампа.lookAt(SPX, 0, SPZ); world.add(лампа); }
+    const прож = new THREE.PointLight(0xfff4d6, 1.4, 70, 1.6); прож.position.set(SPX+dx*0.8, 12, SPZ+dz*0.8); world.add(прож);
+  }
+  const верх = new THREE.PointLight(0xffffff, 1.2, 90); верх.position.set(SPX, 20, SPZ); world.add(верх);
+  const залив = new THREE.HemisphereLight(0xbfe0ff, 0x2f5d34, 0.6); залив.position.set(SPX, 10, SPZ); world.add(залив);
+}
+function clearSportBalls() {                          // ПОЛНОСТЬЮ убрать мячи прошлого захода
+  sportBalls.forEach(p => { world.remove(p.mesh);
+    const i = props.indexOf(p); if (i >= 0) props.splice(i, 1);
+    if (held.includes(p)) held = held.filter(h => h !== p); });
+  sportBalls = [];
+}
+function setupSportStage(id) {
+  const pins = sp.pins;
+  resetSp(); sp.stage = id;
+  pins.forEach(pn => world.remove(pn.mesh));          // убрать старые кегли
+  clearSportBalls();
+  if (id === 'sp1') {                                 // ⚽ футбол: 3 гола
+    sp.need = 3;
+    addSportBall('foot', SPX-6, SPZ);
+    task = '⚽ Засоси мяч (ЛКМ) и выстрели (ПКМ) в ворота — голов: 0/3';
+    hint('Наводи всасывание на мяч → он в трубе → целься в ворота и жми ВЫДУВ');
+  } else if (id === 'sp2') {                          // 🏀 баскет: 3 в кольцо
+    sp.need = 3;
+    addSportBall('basket', SPX-4, SPZ+8);
+    task = '🏀 Забрось мяч в кольцо — попаданий: 0/3';
+    hint('Целься ВЫШЕ кольца — мяч летит по дуге. Кольцо у боковой стены');
+  } else if (id === 'sp3') {                          // 🎳 боулинг: 3 страйка
+    sp.need = 3;
+    addSportBall('bowl', SPX-4, SPZ-9);
+    расставитьКегли();
+    task = '🎳 Сбей все кегли шаром — страйков: 0/3';
+    hint('Кати шар по дорожке в кегли: засоси и стреляй низко');
+  } else if (id === 'sp4') {                          // 🏆 босс Спортсмен
+    sp.need = 1;
+    for (let i = 0; i < 4; i++) addSportBall('foot', SPX-10 + i*3, SPZ+6);
+    sp.boss = spawnGhost('sportsman', SPX+10, SPZ);
+    if (!(save.seen['sportsman'] | 0)) { bigMsg('👻 НОВЫЙ ПРИЗРАК: СПОРТСМЕН', 2.4, '#f97316'); Snd.ghostMoan(); }
+    task = '🏆 Спортсмен! Стреляй по нему мячами, пока не сдастся';
+    hint('Засасывай мячи и стреляй в Спортсмена — он быстрый, лови момент');
+  }
+  updateHud();
+}
+function расставитьКегли() {
+  sp.pins.forEach(pn => world.remove(pn.mesh)); sp.pins = [];
+  const схема = [[0,0],[-0.5,-0.9],[0.5,-0.9],[-1,-1.8],[0,-1.8],[1,-1.8]];
+  схема.forEach(([dx, dz]) => {
+    const g = new THREE.Group();
+    const тело = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.2, 0.9, 10),
+      new THREE.MeshStandardMaterial({ color:0xffffff, roughness:0.5 })); тело.position.y = 0.45; g.add(тело);
+    const полоса = new THREE.Mesh(new THREE.CylinderGeometry(0.155, 0.155, 0.12, 10),
+      new THREE.MeshStandardMaterial({ color:0xe23b3b })); полоса.position.y = 0.66; g.add(полоса);
+    g.position.set(spArena.laneX + dx, 0, spArena.pinZ + dz); world.add(g);
+    sp.pins.push({ x:spArena.laneX+dx, z:spArena.pinZ+dz, mesh:g, down:false });
+  });
+}
+// проверка попадания летящего мяча по спорт-цели (зовётся из updateShots)
+function sportOnShot(s) {
+  if (!sp || sp.done || !s.prop || !s.prop.sportBall) return false;
+  if (sp.stage === 'sp1') {                           // гол: мяч пересёк линию ворот
+    if (s.x > spArena.goalX-0.5 && Math.abs(s.z-spArena.goalZ) < 3.1 && s.y < 4) { спортГол('⚽ ГО-О-ОЛ!'); return true; }
+  } else if (sp.stage === 'sp2') {                    // кольцо: мяч у центра и падает вниз
+    if (Math.hypot(s.x-spArena.hoop.x, s.z-spArena.hoop.z) < spArena.hoop.r && Math.abs(s.y-spArena.hoop.y) < 0.55 && s.vy < 0) { спортГол('🏀 ТОЧНО В КОЛЬЦО!'); return true; }
+  } else if (sp.stage === 'sp3') {                    // кегли: сбиваем те, что рядом
+    let сбил = 0;
+    sp.pins.forEach(pn => { if (!pn.down && Math.hypot(pn.x-s.x, pn.z-s.z) < 0.9 && s.y < 1.4) {
+      pn.down = true; pn.mesh.rotation.z = 1.4; pn.mesh.position.y = 0.2; сбил++; } });
+    if (сбил) { Snd.tone(200, 0.2, 'square', 0.2, 90);
+      if (sp.pins.every(pn => pn.down)) { спортГол('🎳 СТРАЙК!'); setTimeout(() => { if (state==='play' && sp.stage==='sp3' && !sp.done) расставитьКегли(); }, 900); }
+      return сбил >= 1 && s.y < 1.0; }        // низкий шар «останавливается», высокий летит дальше
+  }
+  return false;
+}
+function спортГол(txt) {
+  sp.goals++;
+  Snd.catchWin();
+  const ост = голоскакая();
+  bigMsg(txt + (ост > 0 ? '\nосталось: ' + ост : ''), 2.2, '#fde047');
+  const назв = { sp1:'⚽ Футбол: голов', sp2:'🏀 Баскетбол: попаданий', sp3:'🎳 Боулинг: страйков' }[sp.stage];
+  task = назв + ' ' + sp.goals + '/' + sp.need;
+  if (sp.goals >= sp.need) спортЭтапГотов();
+  updateHud();
+}
+function спортЭтапГотов() {
+  sp.done = true;
+  save.stages[sp.stage] = true; saveNow();
+  bigMsg('🏅 ЭТАП ПРОЙДЕН!', 2.6, '#86efac');
+  const next = { sp1:'Дальше — 🏀 баскетбол', sp2:'Дальше — 🎳 боулинг', sp3:'Дальше — 🏆 босс Спортсмен', sp4:'Спортучасток пройден!' }[sp.stage];
+  say('💙 Дом', next, 5);
+  task = next;
+  updateHud();
+}
+function updateSport(dt) {
+  if (!sp || !player) return;
+  if (spArena.hoop && spArena.hoop.mesh) spArena.hoop.mesh.rotation.z += dt * 0.5;
+  // босс Спортсмен побеждён?
+  if (sp.stage === 'sp4' && sp.boss && !sp.done && !sp.boss.alive) {
+    sp.done = true; save.stages.sp4 = true; saveNow();
+    bigMsg('🏆 СПОРТСМЕН ПОБЕЖДЁН!\nспортучасток пройден!', 3.4, '#fde047');
+    task = '🏆 Спортучасток пройден!'; updateHud();
+  }
 }
 function updateGreenhouse(dt) {
   if (!насос) return;
@@ -2716,6 +2906,13 @@ function skipTo(id) {
     const d = lockedDoors.find(x => x.key === 'kitchen');
     if (d && !d.open) { player.x = 8.2; player.z = -4.2; interact(); }
     player.x = 16; player.z = -6; player.yaw = -1.5; task = '🍳 Кухня: переловить призраков'; }
+  // 🏀 СПОРТУЧАСТОК — отдельное место, входим телепортом с пылесосом
+  if (['sp1','sp2','sp3','sp4'].includes(id)) {
+    дать(); пылесос();
+    границы = { x1:SPX-25, x2:SPX+25, z1:SPZ-16, z2:SPZ+16 };
+    player.x = SPX-16; player.z = SPZ; player.yaw = Math.PI/2; player.dive = 0;
+    setupSportStage(id);
+  }
   bigMsg('🎬 ЭТАП: ' + (STAGES.find(x => x.id === id) || {}).name, 2.2, '#7dd3fc');
   updateHud();
 }
@@ -2947,7 +3144,17 @@ $('helpBack').onclick = () => showScreen('menu');
 $('resumeBtn').onclick = () => togglePause();
 $('menuBtn').onclick = () => toMenu();
 $('overMenu').onclick = () => toMenu();
-$('againBtn').onclick = () => startGame();
+// 💀 ЕЩЁ РАЗ: на среднем — с последнего пройденного этапа, на сложном — с нуля (решение Марка 05.09)
+$('againBtn').onclick = () => {
+  if (save.diff === 'hard') { startGame(); return; }         // 😈 сложный — всё заново
+  const cp = последнийЧекпоинт();
+  startGame(cp || undefined);                                // 😐/😊 — с сохранённого этапа
+};
+function последнийЧекпоинт() {
+  let last = null;
+  for (const s of STAGES) if (save.stages[s.id]) last = s.id;  // самый глубокий пройденный
+  return last;
+}
 $('pauseBtn').onclick = () => togglePause();
 $('fsBtn').onclick = () => goFullscreen();
 
@@ -2964,6 +3171,12 @@ function toMenu() {
 function gameOver(title, text, icon) {
   state = 'over'; mode = null; Snd.suckOff(); Snd.music(false);
   $('overTitle').textContent = title; $('overText').textContent = text; $('overIcon').textContent = icon;
+  // 💀 подсказка про возрождение (Марк 05.09): средний — с чекпоинта, сложный — с нуля
+  const cp = последнийЧекпоинт();
+  const назв = cp ? (STAGES.find(s => s.id === cp) || {}).name : null;
+  $('againBtn').textContent = (save.diff === 'hard')
+    ? '😈 ЗАНОВО С НАЧАЛА'
+    : (назв ? '▶️ С ЭТАПА «' + назв + '»' : '▶️ ЕЩЁ РАЗ');
   $('over').classList.remove('hidden');
   if (document.pointerLockElement) document.exitPointerLock();
 }
@@ -3879,6 +4092,7 @@ function updateShots(dt) {
     if (!hit && s.отПризрака && Math.hypot(player.x-s.x, player.z-s.z) < 1.3 && Math.abs(player.y-s.y) < 1.6) {
       hurt(1); hit = true;
     }
+    if (!hit && sportOnShot(s)) hit = true;            // 🏀 гол/кольцо/кегли/страйк
     if (!hit) for (const gh of ghosts) {
       if (!gh.alive || gh.inProp) continue;
       if (Math.hypot(gh.x-s.x, gh.y-s.y, gh.z-s.z) > 1.3) continue;
@@ -3891,7 +4105,10 @@ function updateShots(dt) {
     if (hit || s.y < 0.2 || s.t > 4) {
       world.remove(s.mesh); shots.splice(i, 1);
       const p = s.prop; p.inNozzle = false;
-      p.x = clamp(s.x, -30, 30); p.z = clamp(s.z, -22, 40); p.mesh.visible = true;
+      // 🏀 спорт-мяч возвращается на своё поле, а не в дом (общий clamp его сносил)
+      if (p.sportBall) { p.x = p.home.x; p.z = p.home.z; }
+      else { p.x = clamp(s.x, -30, 30); p.z = clamp(s.z, -22, 40); }
+      p.mesh.visible = true;
       p.mesh.position.set(p.x, p.baseY, p.z);
       Snd.noise(0.2, 0.14, 260, 1);
     }
@@ -3926,7 +4143,7 @@ function loop(now) {
       ((keys.KeyW||keys.KeyS||keys.KeyA||keys.KeyD) ? 1 : 0)); updateGhosts(dt); updateMice(dt);
     updateProps(dt); updateShots(dt); updatePuffs(dt); updateCrystals(dt); updateRain(dt); updatePool(dt); updateAirFlow(dt);
     updateKeyItem(dt); checkPoolDone(); updateSpectre(dt); updateLibrary(dt);
-    updateVanished(dt); updateMouseHunt(dt); updateChute(dt); updateSpider(dt); updateGreenhouse(dt); updateGates(dt); updateCellarExit(dt); updateZevaka(dt); updateOrx(dt);
+    updateVanished(dt); updateMouseHunt(dt); updateChute(dt); updateSpider(dt); updateGreenhouse(dt); updateGates(dt); updateCellarExit(dt); updateZevaka(dt); updateOrx(dt); updateSport(dt);
     if (msgT > 0) { msgT -= dt; if (msgT <= 0) $('bigMsg').style.opacity = 0; }
     if (subT > 0) { subT -= dt; if (subT <= 0) $('subs').classList.add('hidden'); }
   }
@@ -4093,6 +4310,26 @@ window.__dbg = {
     player.x = л.x; player.z = л.z + 2.6; this.look(л.x, л.z, 1.3); return true; },
   toFlower(){ if (!orx.цветок) return null;
     player.x = orx.цветок.x; player.z = orx.цветок.z; return true; },
+  // 🏀 спортучасток
+  get sport(){ return sp ? { stage:sp.stage, goals:sp.goals, need:sp.need, done:sp.done,
+    balls:sportBalls.length, pinsDown:sp.pins.filter(p => p.down).length, pinsAll:sp.pins.length,
+    bossHp: sp.boss && sp.boss.alive ? Math.round(sp.boss.hp) : (sp.boss ? 0 : null) } : null; },
+  setDiff(d){ save.diff = d; return save.diff; },
+  markStage(id){ save.stages[id] = true; return последнийЧекпоинт(); },
+  checkpoint(){ return последнийЧекпоинт(); },
+  die(){ gameOver('тест', 'тест', '💀'); return $('againBtn').textContent; },
+  sportHit(){                                          // тестовый выстрел мячом точно в текущую цель
+    const p = sportBalls[0]; if (!p || !sp) return null;
+    let x, y, z, vy = 0;
+    if (sp.stage === 'sp1') { x = spArena.goalX + 0.1; y = 1.5; z = spArena.goalZ; }
+    else if (sp.stage === 'sp2') { x = spArena.hoop.x; y = spArena.hoop.y - 0.05; z = spArena.hoop.z; vy = -2; }
+    else if (sp.stage === 'sp3') { const pin = sp.pins.find(pn => !pn.down) || sp.pins[0]; x = pin.x; y = 0.5; z = pin.z; }
+    else if (sp.stage === 'sp4') { const b = sp.boss; if (!b) return null; x = b.x; y = b.y; z = b.z; }
+    if (held.includes(p)) held = held.filter(h => h !== p);
+    p.inNozzle = true; p.mesh.visible = true;
+    shots.push({ mesh:p.mesh, prop:p, x, y, z, vx:0, vy, vz:0, t:0 });
+    return sp.stage;
+  },
 };
 </script>
 
