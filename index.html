@@ -144,7 +144,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#1b2138">
-  <script>window.__APP_VER = "c8bb885bf5";</script>
+  <script>window.__APP_VER = "33b60964fc";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -326,6 +326,7 @@ const GHOSTS = {
   loza2:   { name:'Лоза-старшая',   color:0x4d7c0f, hp:150, speed:1.9, damage:1, possess:0, scale:1.5 },
   zhuzha2: { name:'Жужжа-королева', color:0xeab308, hp:110, speed:4.6, damage:1, possess:0, scale:1.25 },
   plesnyak2:{name:'Плесняк-великан',color:0x57624e, hp:230, speed:0.95,damage:1, possess:0, scale:1.8 },
+  child:   { name:'Малыш',        color:0x93e6ff, hp:120, speed:3.6, damage:1, possess:0, шар:true, scale:0.8 },
 };
 
 /* ══ 💾 ФАЙЛЫ · 🎚 СЛОЖНОСТЬ · ⬆️ УЛУЧШЕНИЯ · 🗄 ХРАНИЛИЩЕ · 🎬 ЭТАПЫ ══ */
@@ -369,6 +370,7 @@ const GHOST_INFO = {
   plesnyak2:{emoji:'🍄', text:'ПЛЕСНЯК-ВЕЛИКАН — третий страж. Вырос в темноте ночной оранжереи, где сырость гуще всего. Огромный и неторопливый: спешить ему некуда, а тебе — придётся.' },
   zevaka:  { emoji:'🌺', text:'ЗЕВАКА. Изначально это был сосед Фантомовых — великий учёный ботаники. Когда он стал призраком, он начал вселяться в растения, чтобы узнать, каково это — быть растением.' },
   sportsman:{ emoji:'🎳', text:'СПОРТСМЕН. Тоже сосед Фантомовых — знаменитый спортсмен. Даже после смерти он не бросил заниматься спортом. Ждёт тебя на спортивном участке — в боулинге.' },
+  child:   { emoji:'🧒', text:'МАЛЫШ — босс бассейна. Погиб совсем маленьким, на рассвете сил. Был другом ребёнка Фантомовых и обожал приходить к ним купаться, но родители не разрешали плескаться долго. Однажды ему надоело — и он пришёл ночью один. А потом появился Морф и забрал его душу. Теперь ныряет и прячется под водой, и поймать его непросто.' },
   spider:  { emoji:'🕷', text:'МОХНОНОГ — подвальный призрак. Из питомцев у него только пауки да крысы. Смешное: при жизни у него была арахнофобия и мусофобия — боязнь пауков и боязнь мышей. Досталось же ему после смерти.' },
 };
 const МИРЫ = [
@@ -404,10 +406,16 @@ const МИРЫ = [
       { id:'basseyn', name:'🤿 Нырок',      desc:'Найти на дне синие кристаллы' },
       { id:'nasos',   name:'🔧 Насос',      desc:'Очистить мутную воду', soon:true },
       { id:'razdev',  name:'🧺 Раздевалка', desc:'Призраки в шкафчиках', soon:true },
-      { id:'noch',    name:'🌙 Ночной заплыв', desc:'Свет погас — ловля в темноте', soon:true },
+      { id:'noch',    name:'🧒 Малыш — БОСС', desc:'Ночной заплыв: лови ныряющего малыша' },
     ] },
   { id:'sosed', name:'🏰 Дом Призраковых', desc:'Соседний особняк. Красивее и страшнее',
-    stages:[ { id:'so1', name:'🚪 Порог', desc:'Сюда мы ещё дойдём', soon:true } ] },
+    stages:[
+      { id:'so1', name:'🐭 Погоня за ключом', desc:'Призрак-мышь украл ключ — догони его' },
+      { id:'so2', name:'🏚 Осмотр комнат',    desc:'Перелови призраков в комнатах', soon:true },
+      { id:'so3', name:'🏆 Трофейный зал',    desc:'Главный трофей… и он сбежал', soon:true },
+      { id:'so4', name:'👻🐭 Облава',          desc:'Призраки и мыши во всех комнатах', soon:true },
+      { id:'so5', name:'👤 МОРФ — ФИНАЛ',     desc:'6 попаданий предметами', soon:true },
+    ] },
 ];
 const STAGES = МИРЫ.flatMap(m => m.stages);
 
@@ -1105,6 +1113,7 @@ function buildInterior() {
   buildGreenhouse();
   buildGates();
   buildSportGround();
+  buildSosedHouse();
   lockedDoors.push({ mesh:kitDoor, x:9.9, z:-4.2, key:'kitchen', wall:kitWall,
                      text:'Кухня заперта. Ключ где-то в доме — обыщи мебель (E).' });
 
@@ -1369,6 +1378,160 @@ function updatePool(dt) {
     c.mesh.material.opacity = 0.06 + k*0.16;
     c.mesh.scale.setScalar(0.8 + k*0.5);
   }
+  updatePoolBoss(dt);
+}
+
+/* 🧒 БОСС БАССЕЙНА — МАЛЫШ (замысел Марка): ночью ныряет и прячется под водой.
+   Всплыл — сжимается круг, лови лучом (hp тает); подпустишь близко или пройдёт время —
+   ныряет с брызгами, уходит под воду (луч его не берёт) и выныривает в другом месте. */
+let poolBoss = null;
+function случайноВБассейне() { return { x: rnd(POOL.x1+2, POOL.x2-2), z: rnd(POOL.z1+2, POOL.z2-2) }; }
+function spawnPoolBoss() {
+  if (poolBoss) return;
+  const p = случайноВБассейне();
+  const gh = spawnGhost('child', p.x, p.z);
+  // 🛟 плавательный круг вокруг малыша
+  const круг = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.22, 10, 20),
+    new THREE.MeshStandardMaterial({ color:0xffd23b, roughness:0.5 }));
+  круг.rotation.x = Math.PI/2; круг.position.y = 0.9; gh.mesh.add(круг);
+  gh.поднырок = 'up'; gh.нырТаймер = rnd(3.5, 5.5);
+  poolBoss = gh;
+  bigMsg('🧒 МАЛЫШ!\nловит ночью в бассейне — он ныряет, лови когда всплывёт', 4, '#93e6ff');
+  say('💙 Дом', 'Это тот самый малыш… Морф забрал его душу. Освободи его — но он прячется под водой.', 8);
+  task = '🧒 Лови Малыша, пока он на поверхности';
+  updateHud();
+}
+/* ═══════════ 🏰 ДОМ ПРИЗРАКОВЫХ (замысел Марка 05.09) ═══════════
+   Соседний особняк — красивее и страшнее. Этап 1: у крыльца лежит ключ, но его
+   хватает ПРИЗРАК-МЫШЬ и удирает — догони её, тогда откроется дверь. */
+const SOX = -160, SOZ = 0;                       // центр соседнего особняка
+let so = null;
+function resetSo() { so = { мышь:null, ключ:null, дверь:null, открыта:false, started:false }; }
+resetSo();
+function buildSosedHouse() {
+  const камень = new THREE.MeshStandardMaterial({ color:0x555a68, roughness:0.9 });
+  const тёмн  = new THREE.MeshStandardMaterial({ color:0x2a2d38, roughness:0.9 });
+  // двор
+  const двор = new THREE.Mesh(new THREE.BoxGeometry(70, 0.3, 60),
+    new THREE.MeshStandardMaterial({ color:0x2c3a2a, roughness:1 }));
+  двор.position.set(SOX, -0.15, SOZ); двор.receiveShadow = true; world.add(двор);
+  // фасад особняка: тело, башни, крыша, светящиеся окна
+  const тело = new THREE.Mesh(new THREE.BoxGeometry(34, 16, 18), камень);
+  тело.position.set(SOX, 8, SOZ-18); тело.castShadow = true; world.add(тело);
+  for (const dx of [-19, 19]) {
+    const башня = new THREE.Mesh(new THREE.CylinderGeometry(4, 4.6, 24, 14), камень);
+    башня.position.set(SOX+dx, 12, SOZ-18); башня.castShadow = true; world.add(башня);
+    const шпиль = new THREE.Mesh(new THREE.ConeGeometry(5.2, 9, 14),
+      new THREE.MeshStandardMaterial({ color:0x4a1d2a, roughness:0.7 }));
+    шпиль.position.set(SOX+dx, 28, SOZ-18); world.add(шпиль);
+  }
+  const крыша = new THREE.Mesh(new THREE.ConeGeometry(24, 10, 4),
+    new THREE.MeshStandardMaterial({ color:0x4a1d2a, roughness:0.7 }));
+  крыша.rotation.y = Math.PI/4; крыша.position.set(SOX, 21, SOZ-18); world.add(крыша);
+  const окноМ = new THREE.MeshStandardMaterial({ color:0x1a1408, emissive:0xd8a24a, emissiveIntensity:1.1 });
+  for (let r = 0; r < 3; r++) for (let c = -3; c <= 3; c++) {
+    if (c === 0 && r === 0) continue;
+    const о = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.4, 0.3), окноМ);
+    о.position.set(SOX + c*4.6, 4 + r*5, SOZ-9); world.add(о);
+  }
+  // парадная дверь (закрыта, пока не догонишь мышь)
+  const д = new THREE.Mesh(new THREE.BoxGeometry(4.2, 6.4, 0.5),
+    new THREE.MeshStandardMaterial({ color:0x3a2418, roughness:0.8 }));
+  д.position.set(SOX, 3.2, SOZ-9); world.add(д);
+  const кольцо = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.09, 8, 16),
+    new THREE.MeshStandardMaterial({ color:0xd8c078, metalness:0.9, roughness:0.3 }));
+  кольцо.position.set(SOX, 3.6, SOZ-8.7); world.add(кольцо);
+  so.дверь = { mesh:д, x:SOX, z:SOZ-9 };
+  // ограда двора
+  const заб = (x1,z1,x2,z2)=>{ const len=Math.hypot(x2-x1,z2-z1), гор=Math.abs(z2-z1)<0.1;
+    const m=new THREE.Mesh(new THREE.BoxGeometry(гор?len:0.5,3,гор?0.5:len),тёмн);
+    m.position.set((x1+x2)/2,1.5,(z1+z2)/2); world.add(m); walls.push({x1,z1,x2,z2}); };
+  заб(SOX-34,SOZ-29,SOX+34,SOZ-29); заб(SOX-34,SOZ+29,SOX+34,SOZ+29);
+  заб(SOX-34,SOZ-29,SOX-34,SOZ+29); заб(SOX+34,SOZ-29,SOX+34,SOZ+29);
+  // фонари у крыльца
+  for (const dx of [-6, 6]) {
+    const ст = new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.2,5,8), тёмн);
+    ст.position.set(SOX+dx, 2.5, SOZ-6); world.add(ст);
+    const ф = new THREE.Mesh(new THREE.SphereGeometry(0.6,12,10),
+      new THREE.MeshStandardMaterial({ color:0xfff0c0, emissive:0xffcf6a, emissiveIntensity:1.4 }));
+    ф.position.set(SOX+dx, 5.3, SOZ-6); world.add(ф);
+    const L = new THREE.PointLight(0xffcf6a, 8, 26); L.position.set(SOX+dx, 5.3, SOZ-6); world.add(L);
+  }
+  // лунный свет над двором: без него особняк почти не видно
+  const луна = new THREE.PointLight(0xbcd4ff, 26, 190, 1.1); луна.position.set(SOX, 34, SOZ+8); world.add(луна);
+  const луна2 = new THREE.PointLight(0xa8c4f0, 16, 150, 1.2); луна2.position.set(SOX, 22, SOZ-20); world.add(луна2);
+  const залив = new THREE.HemisphereLight(0x9fc0ff, 0x1d2a20, 0.75); залив.position.set(SOX, 20, SOZ); world.add(залив);
+  const диск = new THREE.Mesh(new THREE.SphereGeometry(4, 16, 12),
+    new THREE.MeshStandardMaterial({ color:0xffffff, emissive:0xdfe8ff, emissiveIntensity:1.6 }));
+  диск.position.set(SOX+26, 46, SOZ+34); world.add(диск);   // 🌕 луна в небе
+}
+function startSo1() {
+  if (so.started) return; so.started = true;
+  // 🐭 призрак-мышь с ключом — удирает по двору
+  const m = spawnMouse(SOX + 6, SOZ + 10, true);
+  m.speed = 1.35;                                 // шустрее обычной — это призрачная мышь
+  // 👻 ПРОЗРАЧНАЯ ГОЛУБАЯ мышь-призрак (Марк): само тело голубое и просвечивает
+  m.mesh.traverse(o => { if (o.material) { o.material = o.material.clone();
+    o.material.transparent = true; o.material.opacity = 0.55;
+    if (o.material.color) o.material.color.setHex(0x8fdcff);
+    if (o.material.emissive) { o.material.emissive.setHex(0x35a8e0); o.material.emissiveIntensity = 0.9; } } });
+  const свеч = new THREE.PointLight(0x7dd3fc, 4, 9); свеч.position.y = 0.3; m.mesh.add(свеч);
+  so.мышь = m;
+  bigMsg('🐭 ПРИЗРАК-МЫШЬ УТАЩИЛ КЛЮЧ!\nдогони его', 3.6, '#7dd3fc');
+  say('💙 Дом', 'Ключ от дома Призраковых был тут… а теперь его тащит эта мышь. Догоняй!', 8);
+  task = '🐭 Догони призрака-мышь с ключом';
+  hint('Беги за мышью (Shift — бег). Догнал — она бросит ключ');
+  updateHud();
+}
+function updateSo(dt) {
+  if (!so || !player) return;
+  // догнал мышь → ключ у тебя → дверь открывается
+  if (so.started && !so.открыта && hasKey && so.мышь && !so.мышь.withKey) {
+    so.открыта = true; save.stages.so1 = true; saveNow();
+    if (so.дверь) { so.дверь.mesh.rotation.y = 1.2; so.дверь.mesh.position.x += 1.8; }
+    Snd.catchWin();
+    bigMsg('🔑 КЛЮЧ У ТЕБЯ!\nдверь Призраковых открыта', 3.4, '#fde68a');
+    say('💙 Дом', 'Слышишь? Дверь скрипнула. Дальше — комнаты, трофейный зал… и Морф.', 8);
+    task = '🏚 Заходи в дом Призраковых'; updateHud();
+  }
+}
+function updatePoolBoss(dt) {
+  const gh = poolBoss;
+  if (!gh) return;
+  if (!gh.alive) {                                      // пойман → этап пройден
+    poolBoss = null;
+    save.stages.noch = true; saveNow();
+    bigMsg('🧒 МАЛЫШ ОСВОБОЖДЁН!\nбассейн пройден', 3.4, '#93e6ff');
+    say('💙 Дом', 'Спасибо тебе. Его душа наконец свободна. А Морф… с ним ты встретишься в доме Призраковых.', 8);
+    task = '🏊 Бассейн пройден!'; updateHud();
+    return;
+  }
+  gh.нырТаймер -= dt;
+  if (gh.поднырок === 'up') {
+    // всплыл: держится над водой, играет-удирает от игрока; ныряет по таймеру или если подошёл вплотную
+    const близко = Math.hypot(player.x-gh.x, player.z-gh.z) < 2.2;
+    if (gh.нырТаймер <= 0 || близко) {
+      gh.поднырок = 'diving'; gh.нырТаймер = 1.6; gh.stun = 2.0;
+      for (let i = 0; i < 16; i++) puff(gh.x, POOL.вода+0.2, gh.z, 0x9be3ff);
+      Snd.noise(0.4, 0.16, 500, 1);
+    }
+  } else if (gh.поднырок === 'diving') {
+    // под водой — луч его не берёт (гейт в updateBeam по gh.подводой)
+    gh.подводой = true;
+    if (gh.нырТаймер <= 0) {                            // выныриваем в новом месте
+      const p = случайноВБассейне(); gh.x = p.x; gh.z = p.z;
+      gh.поднырок = 'up'; gh.подводой = false; gh.нырТаймер = rnd(3.0, 5.0); gh.stun = 0;
+      for (let i = 0; i < 18; i++) puff(gh.x, POOL.вода+0.3, gh.z, 0xbdefff);
+      Snd.tone(600, 0.16, 'sine', 0.14, 300);
+    }
+  }
+  // держим малыша в чаше и на нужной высоте (над водой / под водой)
+  gh.x = clamp(gh.x, POOL.x1+1, POOL.x2-1); gh.z = clamp(gh.z, POOL.z1+1, POOL.z2-1);
+  const targetY = gh.подводой ? POOL.дно+1.0 : 1.35;
+  gh.y += (targetY - gh.y) * Math.min(1, dt*4);
+  gh.mesh.position.set(gh.x, gh.y - 0.55, gh.z);
+  gh.mesh.visible = true;
+  gh.mesh.traverse(o => { if (o.material && o.material.transparent) o.material.opacity = gh.подводой ? 0.28 : 0.85; });
 }
 
 /* 🌺 ЗЕВАКА — босс оранжереи (замысел Марка): мухоловка ждёт с открытой пастью,
@@ -2838,7 +3001,10 @@ function startGame(stageId) {
   if (zevaka) { world.remove(zevaka.mesh); zevaka = null; }
   ghDone = false;
   if (насос) { насос.включён = false; насос.есть = false; }
-  restartOrx();
+  restartOrx(); poolBoss = null;
+  if (so) { so.started = false; so.мышь = null;      // 🏰 дом Призраковых — сброс погони
+    if (so.открыта && so.дверь) { so.дверь.mesh.rotation.y = 0; so.дверь.mesh.position.x = SOX; }
+    so.открыта = false; }
   растения.forEach(р => { р.цель = 0.28; р.mesh.scale.setScalar(0.28); р.цветок.visible = false; });
   if (spider) { world.remove(spider.mesh); spider = null; }
   cellar = null; границы = { ...ГРАНИЦЫ_ДОМА };
@@ -2929,6 +3095,14 @@ function skipTo(id) {
     const dl = lockedDoors.find(x => x.key === 'lib');
     if (dl && !dl.open) { player.x = 0; player.z = -21; interact(); }
     player.x = 0; player.z = -30; player.yaw = Math.PI; task = '📚 Поймать Шелеста и Полтергейста'; }
+  // 🧒 НОЧНОЙ ЗАПЛЫВ — босс бассейна
+  if (id === 'noch') { дать(); пылесос(); bag.kitchen = true; bag.pool = true;
+    const dk2 = lockedDoors.find(x => x.key === 'kitchen');
+    if (dk2 && !dk2.open) { player.x = 8.2; player.z = -4.2; interact(); }
+    const dp2 = lockedDoors.find(x => x.key === 'pool');
+    if (dp2 && !dp2.open) { player.x = 20; player.z = -22; interact(); }
+    player.x = 21; player.z = -28; player.yaw = Math.PI;
+    setTimeout(() => { if (state === 'play') spawnPoolBoss(); }, 1200); }
   if (id === 'basseyn') { дать(); пылесос(); bag.kitchen = true; bag.pool = true;
     const dk = lockedDoors.find(x => x.key === 'kitchen');
     if (dk && !dk.open) { player.x = 8.2; player.z = -4.2; interact(); }
@@ -2939,6 +3113,15 @@ function skipTo(id) {
     const d = lockedDoors.find(x => x.key === 'kitchen');
     if (d && !d.open) { player.x = 8.2; player.z = -4.2; interact(); }
     player.x = 16; player.z = -6; player.yaw = -1.5; task = '🍳 Кухня: переловить призраков'; }
+  // 🏰 ДОМ ПРИЗРАКОВЫХ — соседний особняк, вход через погоню за призраком-мышью
+  if (id === 'so1') {
+    пылесос();                                     // пылесос есть, а КЛЮЧ — у мыши
+    hasKey = false;
+    границы = { x1:SOX-33, x2:SOX+33, z1:SOZ-28, z2:SOZ+28 };
+    player.x = SOX; player.z = SOZ+16; player.yaw = 0; player.dive = 0;
+    so.started = false; so.открыта = false;
+    setTimeout(() => { if (state === 'play') startSo1(); }, 900);
+  }
   // 🏀 СПОРТУЧАСТОК — отдельное место, входим телепортом с пылесосом
   if (['sp1','sp2','sp3','sp4'].includes(id)) {
     дать(); пылесос();
@@ -3753,6 +3936,7 @@ function updateBeam(dt) {
   for (const gh of ghosts) {
     if (!gh.alive || gh.inProp) continue;
     if (gh.info.invisible && !spectreOn) continue;   // невидимку берёт только Спектр
+    if (gh.kind === 'child' && gh.подводой) continue; // 🧒 под водой малыша не взять — жди, пока всплывёт
     const w = inBeam(gh.x, gh.y, gh.z);
     if (w > bestW) { bestW = w; best = { type:'ghost', obj:gh }; }
   }
@@ -3932,6 +4116,7 @@ function ejectGhost(p) {
 function updateGhosts(dt) {
   for (const gh of ghosts) {
     if (!gh.alive) continue;
+    if (gh.kind === 'child') { gh.t += dt; continue; }  // 🧒 малыш живёт своей логикой в updatePoolBoss
     gh.t += dt;
     gh.stun = Math.max(0, gh.stun - dt);
 
@@ -4072,7 +4257,8 @@ function updateMice(dt) {
     const before = Math.hypot(m.vx, m.vz);
     const r = slideAlongWalls(nx, nz, 0.22);
     // прижали к забору/стене/краю сада — ключ выпадает
-    const cx = clamp(r.x, -33, 45), cz = clamp(r.z, -22.5, 45);
+    // ⚠️ границы мыши — как у мира (жёсткий -33..45 утаскивал мышь из двора Призраковых)
+    const cx = clamp(r.x, границы.x1, границы.x2), cz = clamp(r.z, Math.max(границы.z1, -22.5), границы.z2);
     const blocked = Math.hypot(r.x-nx, r.z-nz) > 0.02 ||
                     Math.abs(cx-r.x) > 0.001 || Math.abs(cz-r.z) > 0.001;
     m.x = cx; m.z = cz;
@@ -4176,7 +4362,7 @@ function loop(now) {
       ((keys.KeyW||keys.KeyS||keys.KeyA||keys.KeyD) ? 1 : 0)); updateGhosts(dt); updateMice(dt);
     updateProps(dt); updateShots(dt); updatePuffs(dt); updateCrystals(dt); updateRain(dt); updatePool(dt); updateAirFlow(dt);
     updateKeyItem(dt); checkPoolDone(); updateSpectre(dt); updateLibrary(dt);
-    updateVanished(dt); updateMouseHunt(dt); updateChute(dt); updateSpider(dt); updateGreenhouse(dt); updateGates(dt); updateCellarExit(dt); updateZevaka(dt); updateOrx(dt); updateSport(dt); updateSportDoor(dt);
+    updateVanished(dt); updateMouseHunt(dt); updateChute(dt); updateSpider(dt); updateGreenhouse(dt); updateGates(dt); updateCellarExit(dt); updateZevaka(dt); updateOrx(dt); updateSport(dt); updateSportDoor(dt); updateSo(dt);
     if (msgT > 0) { msgT -= dt; if (msgT <= 0) $('bigMsg').style.opacity = 0; }
     if (subT > 0) { subT -= dt; if (subT <= 0) $('subs').classList.add('hidden'); }
   }
@@ -4347,6 +4533,16 @@ window.__dbg = {
   get sport(){ return sp ? { stage:sp.stage, goals:sp.goals, need:sp.need, done:sp.done,
     balls:sportBalls.length, pinsDown:sp.pins.filter(p => p.down).length, pinsAll:sp.pins.length,
     bossHp: sp.boss && sp.boss.alive ? Math.round(sp.boss.hp) : (sp.boss ? 0 : null) } : null; },
+  get sosed(){ return so ? { погоня:so.started, ключ:hasKey, дверь:so.открыта,
+    мышьСКлючом: so.мышь ? !!so.мышь.withKey : null } : null; },
+  toSoMouse(){ const m = so && so.мышь; if (!m || !m.alive) return null;
+    player.x = m.x; player.z = m.z + 1.0; this.look(m.x, m.z, 0.25);
+    return { d:+Math.hypot(m.x-player.x, m.z-player.z).toFixed(2), key:!!m.withKey, alive:m.alive }; },
+  get poolBoss(){ return poolBoss && poolBoss.alive ? { hp:Math.round(poolBoss.hp),
+    фаза:poolBoss.поднырок, подводой:!!poolBoss.подводой, x:+poolBoss.x.toFixed(1), z:+poolBoss.z.toFixed(1) }
+    : (poolBoss ? null : (save.stages.noch ? 'пройден' : null)); },
+  toPoolBoss(){ if (!poolBoss || !poolBoss.alive) return null;
+    player.x = poolBoss.x + 2.6; player.z = poolBoss.z + 2.6; this.look(poolBoss.x, poolBoss.z, poolBoss.y); return true; },
   setDiff(d){ save.diff = d; return save.diff; },
   markStage(id){ save.stages[id] = true; return последнийЧекпоинт(); },
   checkpoint(){ return последнийЧекпоинт(); },
