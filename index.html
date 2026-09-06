@@ -144,7 +144,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#1b2138">
-  <script>window.__APP_VER = "840b5c9d2e";</script>
+  <script>window.__APP_VER = "3d98a23460";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -2605,11 +2605,13 @@ function sportOnShot(s) {
   if (!sp || sp.done || !s.prop || !s.prop.sportBall) return false;
   if (sp.stage === 'sp1') {                           // гол: мяч пересёк линию ворот
     if (s.x > spArena.goalX-0.5 && Math.abs(s.z-spArena.goalZ) < 3.1 && s.y < 4) { спортГол('⚽ ГО-О-ОЛ!'); return true; }
-  } else if (sp.stage === 'sp2') {                    // кольцо: мяч у центра и падает вниз
-    if (Math.hypot(s.x-spArena.hoop.x, s.z-spArena.hoop.z) < spArena.hoop.r && Math.abs(s.y-spArena.hoop.y) < 0.55 && s.vy < 0) { спортГол('🏀 ТОЧНО В КОЛЬЦО!'); return true; }
+  } else if (sp.stage === 'sp2') {                    // кольцо: мяч рядом с кольцом и идёт вниз
+    // ⚠️ было слишком строго (r 0.6, ±0.55) — попасть почти невозможно (жалоба Марка 06.09)
+    if (Math.hypot(s.x-spArena.hoop.x, s.z-spArena.hoop.z) < 1.5 &&
+        Math.abs(s.y-spArena.hoop.y) < 1.3 && s.vy < 1.5) { спортГол('🏀 ТОЧНО В КОЛЬЦО!'); return true; }
   } else if (sp.stage === 'sp3') {                    // кегли: сбиваем те, что рядом
     let сбил = 0;
-    sp.pins.forEach(pn => { if (!pn.down && Math.hypot(pn.x-s.x, pn.z-s.z) < 0.9 && s.y < 1.4) {
+    sp.pins.forEach(pn => { if (!pn.down && Math.hypot(pn.x-s.x, pn.z-s.z) < 1.8 && s.y < 2.4) {
       pn.down = true; pn.mesh.rotation.z = 1.4; pn.mesh.position.y = 0.2; сбил++; } });
     if (сбил) { Snd.tone(200, 0.2, 'square', 0.2, 90);
       if (sp.pins.every(pn => pn.down)) { спортГол('🎳 СТРАЙК!'); setTimeout(() => { if (state==='play' && sp.stage==='sp3' && !sp.done) расставитьКегли(); }, 900); }
@@ -4098,8 +4100,26 @@ function shootHeld() {
   const m = heldObj.mesh;
   m.visible = true;
   m.position.set(player.x + dir.x*2.0, player.y - 0.15 + dir.y*2.0, player.z + dir.z*2.0);
+  // 🏀 спортивные мячи летят дальше и по дуге; в боулинге шар КАТИТСЯ
+  const мяч = !!heldObj.sportBall;
+  const этап = sp && sp.stage;
+  const V = мяч ? (этап === 'sp3' ? 30 : 34) : 26;
+  const подброс = !мяч ? 1.5 : этап === 'sp3' ? 1.0 : 7.5;
+  let vx = dir.x*V, vy = dir.y*V + подброс, vz = dir.z*V;
+  // 🎯 БАСКЕТБОЛ: если целишься в сторону кольца — мяч летит точной дугой В кольцо
+  // (иначе при таком подбросе он всегда перелетал — жалоба Марка 06.09)
+  if (мяч && этап === 'sp2' && spArena.hoop) {
+    const hx = spArena.hoop.x, hz = spArena.hoop.z, hy = spArena.hoop.y;
+    const dx = hx - m.position.x, dz = hz - m.position.z, d = Math.hypot(dx, dz);
+    const кНему = (dir.x*dx + dir.z*dz) / (d || 1);          // насколько смотрим на кольцо
+    if (d > 1.5 && кНему > 0.55) {
+      const t = clamp(d/12, 0.55, 1.4);                       // время полёта
+      vx = dx/t; vz = dz/t;
+      vy = ((hy - m.position.y) + 0.5*17*t*t) / t;            // баллистика с g=17
+    }
+  }
   shots.push({ mesh:m, prop:heldObj, x:m.position.x, y:m.position.y, z:m.position.z,
-               vx:dir.x*26, vy:dir.y*26 + 1.5, vz:dir.z*26, t:0 });
+               vx, vy, vz, t:0 });
   for (let i = 0; i < 10; i++) puff(m.position.x, m.position.y, m.position.z, 0xfde68a);
   if (vmBrush) vmBrush.position.z += 0.06;              // отдача щётки
   Snd.tone(300, 0.18, 'square', 0.22, 90); Snd.noise(0.16, 0.16, 700, 1);
@@ -4871,11 +4891,14 @@ function updateShots(dt) {
       break;
     }
     if (hit || s.y < 0.2 || s.t > 4) {
-      world.remove(s.mesh); shots.splice(i, 1);
+      shots.splice(i, 1);
       const p = s.prop; p.inNozzle = false;
       // 🏀 спорт-мяч возвращается на своё поле, а не в дом (общий clamp его сносил)
       if (p.sportBall) { p.x = p.home.x; p.z = p.home.z; }
       else { p.x = clamp(s.x, -30, 30); p.z = clamp(s.z, -22, 40); }
+      // ⚠️ БАГ (Марк 06.09): меш выбрасывали из мира и НЕ возвращали —
+      // после гола мяч исчезал навсегда и играть было нечем.
+      if (p.mesh.parent !== world) world.add(p.mesh);
       p.mesh.visible = true;
       p.mesh.position.set(p.x, p.baseY, p.z);
       Snd.noise(0.2, 0.14, 260, 1);
@@ -5133,6 +5156,17 @@ window.__dbg = {
   markStage(id){ save.stages[id] = true; return последнийЧекпоинт(); },
   checkpoint(){ return последнийЧекпоинт(); },
   die(){ gameOver('тест', 'тест', '💀'); return $('againBtn').textContent; },
+  get ballAlive(){ const p = sportBalls[0];             // мяч на поле и виден?
+    return !!(p && p.mesh && p.mesh.parent && p.mesh.visible); },
+  aimGoal(){                                            // прицел в текущую спорт-цель (как игрок)
+    if (!sp) return null;
+    if (sp.stage === 'sp1') this.look(spArena.goalX, spArena.goalZ, 2.0);
+    else if (sp.stage === 'sp2') this.look(spArena.hoop.x, spArena.hoop.z, spArena.hoop.y + 0.6);
+    else if (sp.stage === 'sp3') { const pin = sp.pins.find(p => !p.down) || sp.pins[0];
+      if (pin) this.look(pin.x, pin.z, 0.6); }
+    else if (sp.stage === 'sp4' && sp.boss) this.look(sp.boss.x, sp.boss.z, sp.boss.y);
+    return +player.pitch.toFixed(2);
+  },
   sportHit(){                                          // тестовый выстрел мячом точно в текущую цель
     const p = sportBalls[0]; if (!p || !sp) return null;
     let x, y, z, vy = 0;
