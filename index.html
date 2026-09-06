@@ -144,7 +144,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#1b2138">
-  <script>window.__APP_VER = "33b60964fc";</script>
+  <script>window.__APP_VER = "269dbcbc06";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -404,8 +404,8 @@ const МИРЫ = [
   { id:'pool', name:'🏊 Бассейн', desc:'Сюда Фантомовы ходили купаться',
     stages:[
       { id:'basseyn', name:'🤿 Нырок',      desc:'Найти на дне синие кристаллы' },
-      { id:'nasos',   name:'🔧 Насос',      desc:'Очистить мутную воду', soon:true },
-      { id:'razdev',  name:'🧺 Раздевалка', desc:'Призраки в шкафчиках', soon:true },
+      { id:'nasos',   name:'🔧 Насос',      desc:'Вода зацвела — запусти фильтр' },
+      { id:'razdev',  name:'🧺 Раздевалка', desc:'Призраки в шкафчиках — открой и лови' },
       { id:'noch',    name:'🧒 Малыш — БОСС', desc:'Ночной заплыв: лови ныряющего малыша' },
     ] },
   { id:'sosed', name:'🏰 Дом Призраковых', desc:'Соседний особняк. Красивее и страшнее',
@@ -1114,6 +1114,7 @@ function buildInterior() {
   buildGates();
   buildSportGround();
   buildSosedHouse();
+  buildPoolExtras();
   lockedDoors.push({ mesh:kitDoor, x:9.9, z:-4.2, key:'kitchen', wall:kitWall,
                      text:'Кухня заперта. Ключ где-то в доме — обыщи мебель (E).' });
 
@@ -1401,6 +1402,117 @@ function spawnPoolBoss() {
   task = '🧒 Лови Малыша, пока он на поверхности';
   updateHud();
 }
+/* ═══ 🏊 БАССЕЙН, этапы 2–3 (просьба Марка 06.09) ═══
+   🔧 Насос: вода мутная и зелёная, ничего не видно — найди вентиль и запусти фильтр.
+   🧺 Раздевалка: в шкафчиках сидят призраки — открывай дверцы и лови. */
+let poolPump = null, lockers = [], мутно = false;
+function buildPoolExtras() {
+  // 🔧 НАСОС-фильтр у дальней стены крыла
+  const g = new THREE.Group();
+  const бак = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.05, 2.2, 14), M.metal);
+  бак.position.y = 1.1; g.add(бак);
+  const труба = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 3.0, 10), M.metal);
+  труба.rotation.z = Math.PI/2; труба.position.set(-1.6, 1.8, 0); g.add(труба);
+  const вентиль = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.1, 8, 16),
+    new THREE.MeshStandardMaterial({ color:0xb91c1c, roughness:0.5 }));
+  вентиль.position.set(0, 2.3, 0.9); g.add(вентиль);
+  const лампа = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 8),
+    new THREE.MeshStandardMaterial({ color:0x7f1d1d, emissive:0xef4444, emissiveIntensity:1.6 }));
+  лампа.position.set(0.7, 2.5, 0.7); g.add(лампа);
+  g.position.set(29.2, 0, -44); world.add(g);
+  addSolidBox(29.2, -44, 2.4, 2.2);
+  poolPump = { x:29.2, z:-44, mesh:g, вентиль, лампа, включён:false };
+
+  // 🧺 РАЗДЕВАЛКА: ряд шкафчиков вдоль стены крыла
+  const корпМ = new THREE.MeshStandardMaterial({ color:0x2f6f7f, roughness:0.55, metalness:0.25 });
+  const дверМ = new THREE.MeshStandardMaterial({ color:0x3d8ba0, roughness:0.5, metalness:0.3 });
+  lockers = [];
+  for (let i = 0; i < 6; i++) {
+    const x = 12.6, z = -42 + i*2.3;
+    const шкаф = new THREE.Mesh(new THREE.BoxGeometry(1.2, 4.0, 1.9), корпМ);
+    шкаф.position.set(x, 2.0, z); шкаф.castShadow = true; world.add(шкаф);
+    const дверца = new THREE.Mesh(new THREE.BoxGeometry(0.14, 3.7, 1.7), дверМ);
+    дверца.position.set(x + 0.66, 2.0, z); world.add(дверца);
+    const ручка = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 8), M.metal);
+    ручка.position.set(x + 0.78, 2.0, z + 0.6); world.add(ручка);
+    // решётка-щёлочки на дверце
+    for (let k = 0; k < 3; k++) {
+      const щ = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.09, 1.1),
+        new THREE.MeshStandardMaterial({ color:0x14343d }));
+      щ.position.set(x + 0.7, 3.1 - k*0.28, z); world.add(щ);
+    }
+    walls.push({ x1:x-0.6, z1:z-0.95, x2:x+0.6, z2:z-0.95 });
+    lockers.push({ x, z, дверца, ручка, открыт:false, призрак:null });
+  }
+}
+function startPoolPump() {
+  if (!poolPump) return;
+  мутно = true; poolPump.включён = false;
+  if (poolWater) { poolWater.material.color.setHex(0x4a7a3a);        // мутно-зелёная вода
+    poolWater.material.emissive.setHex(0x2a4a20); poolWater.material.opacity = 0.92; }
+  caustics.forEach(c => c.mesh.visible = false);
+  bigMsg('🔧 ВОДА ПОМУТНЕЛА!\nнайди вентиль насоса у дальней стены', 4, '#84cc16');
+  say('💙 Дом', 'Фильтр встал — вода зацвела. Вентиль на насосе, в дальнем углу крыла. Крути!', 8);
+  task = '🔧 Запусти насос бассейна (подойди к вентилю)';
+  hint('Насос — у дальней стены за бассейном. Подойди к нему вплотную');
+  updateHud();
+}
+function startLockers() {
+  const виды = ['tihonya','domosed','buyan','tihonya'];
+  let n = 0;
+  lockers.forEach((l, i) => { l.открыт = false; l.призрак = null;
+    l.дверца.rotation.y = 0; l.дверца.position.set(l.x + 0.66, 2.0, l.z);
+    if (i % 2 === 0 && n < 3) { l.занят = true; l.вид = виды[n]; n++; } else l.занят = false; });
+  bigMsg('🧺 РАЗДЕВАЛКА\nв шкафчиках кто-то шуршит…', 3.4, '#7dd3fc');
+  say('💙 Дом', 'В раздевалке шкафчики. Слышишь? Там кто-то есть. Открывай и лови.', 8);
+  task = '🧺 Открой шкафчики и перелови призраков (0/3)';
+  hint('Подойди к шкафчику вплотную — дверца распахнётся');
+  updateHud();
+}
+function updatePoolExtras(dt) {
+  if (!player) return;
+  // 🔧 насос: подошёл к вентилю — фильтр запускается, вода светлеет
+  if (poolPump) {
+    poolPump.вентиль.rotation.z += poolPump.включён ? dt*3 : 0;
+    poolPump.лампа.material.emissive.setHex(poolPump.включён ? 0x22c55e : 0xef4444);
+    if (мутно && !poolPump.включён &&
+        Math.hypot(poolPump.x-player.x, poolPump.z-player.z) < 3.2) {
+      poolPump.включён = true; мутно = false;
+      save.stages.nasos = true; saveNow();
+      if (poolWater) { poolWater.material.color.setHex(0x4fd2f0);
+        poolWater.material.emissive.setHex(0x1477a0); poolWater.material.opacity = 0.62; }
+      caustics.forEach(c => c.mesh.visible = true);
+      Snd.tone(180, 0.6, 'sawtooth', 0.2, 90); Snd.noise(1.4, 0.18, 700, 0.7);
+      Snd.catchWin();
+      bigMsg('💧 ФИЛЬТР ЗАРАБОТАЛ!\nвода снова чистая', 3.4, '#7dd3fc');
+      task = '🏊 Вода чистая — дальше раздевалка'; updateHud();
+    }
+  }
+  // 🧺 шкафчики: подошёл — дверца распахивается, вылетает призрак
+  for (const l of lockers) {
+    if (l.открыт || !l.занят) continue;
+    if (Math.hypot(l.x-player.x, l.z-player.z) > 2.6) continue;
+    l.открыт = true;
+    l.дверца.rotation.y = -1.2; l.дверца.position.x += 0.5; l.дверца.position.z += 0.7;
+    Snd.tone(220, 0.4, 'sawtooth', 0.18, 120); Snd.noise(0.4, 0.1, 400, 1);
+    const gh = spawnGhost(l.вид, l.x + 1.6, l.z);
+    gh.stun = 0.6; l.призрак = gh;
+    for (let i = 0; i < 12; i++) puff(l.x + 1.2, 2.0, l.z, gh.info.color);
+    bigMsg('👻 ' + gh.info.name.toUpperCase() + ' ИЗ ШКАФЧИКА!', 1.8, '#7dd3fc');
+  }
+  // все ли пойманы?
+  const занятые = lockers.filter(l => l.занят);
+  if (занятые.length && !save.stages.razdev &&
+      занятые.every(l => l.открыт && l.призрак && !l.призрак.alive)) {
+    save.stages.razdev = true; saveNow();
+    bigMsg('🧺 РАЗДЕВАЛКА ЧИСТА!', 3, '#86efac');
+    task = '🧺 Раздевалка пройдена!'; updateHud();
+  } else if (занятые.length) {
+    const поймано = занятые.filter(l => l.призрак && !l.призрак.alive).length;
+    if (поймано && !save.stages.razdev) task = '🧺 Шкафчики: поймано ' + поймано + '/' + занятые.length;
+  }
+}
+
 /* ═══════════ 🏰 ДОМ ПРИЗРАКОВЫХ (замысел Марка 05.09) ═══════════
    Соседний особняк — красивее и страшнее. Этап 1: у крыльца лежит ключ, но его
    хватает ПРИЗРАК-МЫШЬ и удирает — догони её, тогда откроется дверь. */
@@ -3002,6 +3114,13 @@ function startGame(stageId) {
   ghDone = false;
   if (насос) { насос.включён = false; насос.есть = false; }
   restartOrx(); poolBoss = null;
+  мутно = false;                                      // 🔧 вода снова чистая при новом старте
+  if (poolPump) poolPump.включён = false;
+  if (poolWater) { poolWater.material.color.setHex(0x4fd2f0);
+    poolWater.material.emissive.setHex(0x1477a0); poolWater.material.opacity = 0.62; }
+  caustics.forEach(c => c.mesh.visible = true);
+  lockers.forEach(l => { l.открыт = false; l.занят = false; l.призрак = null;
+    l.дверца.rotation.y = 0; l.дверца.position.set(l.x + 0.66, 2.0, l.z); });
   if (so) { so.started = false; so.мышь = null;      // 🏰 дом Призраковых — сброс погони
     if (so.открыта && so.дверь) { so.дверь.mesh.rotation.y = 0; so.дверь.mesh.position.x = SOX; }
     so.открыта = false; }
@@ -3095,6 +3214,18 @@ function skipTo(id) {
     const dl = lockedDoors.find(x => x.key === 'lib');
     if (dl && !dl.open) { player.x = 0; player.z = -21; interact(); }
     player.x = 0; player.z = -30; player.yaw = Math.PI; task = '📚 Поймать Шелеста и Полтергейста'; }
+  // 🔧🧺 БАССЕЙН: насос и раздевалка
+  const кБассейну = () => { дать(); пылесос(); bag.kitchen = true; bag.pool = true;
+    const dk3 = lockedDoors.find(x => x.key === 'kitchen');
+    if (dk3 && !dk3.open) { player.x = 8.2; player.z = -4.2; interact(); }
+    const dp3 = lockedDoors.find(x => x.key === 'pool');
+    if (dp3 && !dp3.open) { player.x = 20; player.z = -22; interact(); } };
+  if (id === 'nasos') { кБассейну();
+    player.x = 21; player.z = -28; player.yaw = Math.PI;
+    setTimeout(() => { if (state === 'play') startPoolPump(); }, 900); }
+  if (id === 'razdev') { кБассейну();
+    player.x = 16; player.z = -34; player.yaw = -Math.PI/2;
+    setTimeout(() => { if (state === 'play') startLockers(); }, 900); }
   // 🧒 НОЧНОЙ ЗАПЛЫВ — босс бассейна
   if (id === 'noch') { дать(); пылесос(); bag.kitchen = true; bag.pool = true;
     const dk2 = lockedDoors.find(x => x.key === 'kitchen');
@@ -4362,7 +4493,7 @@ function loop(now) {
       ((keys.KeyW||keys.KeyS||keys.KeyA||keys.KeyD) ? 1 : 0)); updateGhosts(dt); updateMice(dt);
     updateProps(dt); updateShots(dt); updatePuffs(dt); updateCrystals(dt); updateRain(dt); updatePool(dt); updateAirFlow(dt);
     updateKeyItem(dt); checkPoolDone(); updateSpectre(dt); updateLibrary(dt);
-    updateVanished(dt); updateMouseHunt(dt); updateChute(dt); updateSpider(dt); updateGreenhouse(dt); updateGates(dt); updateCellarExit(dt); updateZevaka(dt); updateOrx(dt); updateSport(dt); updateSportDoor(dt); updateSo(dt);
+    updateVanished(dt); updateMouseHunt(dt); updateChute(dt); updateSpider(dt); updateGreenhouse(dt); updateGates(dt); updateCellarExit(dt); updateZevaka(dt); updateOrx(dt); updateSport(dt); updateSportDoor(dt); updateSo(dt); updatePoolExtras(dt);
     if (msgT > 0) { msgT -= dt; if (msgT <= 0) $('bigMsg').style.opacity = 0; }
     if (subT > 0) { subT -= dt; if (subT <= 0) $('subs').classList.add('hidden'); }
   }
@@ -4533,6 +4664,16 @@ window.__dbg = {
   get sport(){ return sp ? { stage:sp.stage, goals:sp.goals, need:sp.need, done:sp.done,
     balls:sportBalls.length, pinsDown:sp.pins.filter(p => p.down).length, pinsAll:sp.pins.length,
     bossHp: sp.boss && sp.boss.alive ? Math.round(sp.boss.hp) : (sp.boss ? 0 : null) } : null; },
+  get poolExtras(){ return { мутно, насос: poolPump ? poolPump.включён : null,
+    шкафчиков: lockers.filter(l => l.занят).length,
+    открыто: lockers.filter(l => l.открыт).length,
+    поймано: lockers.filter(l => l.занят && l.призрак && !l.призрак.alive).length,
+    этапНасос: !!save.stages.nasos, этапРаздевалка: !!save.stages.razdev }; },
+  toPump2(){ if (!poolPump) return null; player.x = poolPump.x - 2.4; player.z = poolPump.z; return true; },
+  toLocker(i){ const l = lockers.filter(x => x.занят)[i||0]; if (!l) return null;
+    player.x = l.x + 2.2; player.z = l.z; this.look(l.x, l.z, 2.0); return true; },
+  toLockerGhost(){ const l = lockers.find(x => x.призрак && x.призрак.alive); if (!l) return null;
+    const g = l.призрак; player.x = g.x + 2.4; player.z = g.z + 2.4; this.look(g.x, g.z, g.y); return true; },
   get sosed(){ return so ? { погоня:so.started, ключ:hasKey, дверь:so.открыта,
     мышьСКлючом: so.мышь ? !!so.мышь.withKey : null } : null; },
   toSoMouse(){ const m = so && so.мышь; if (!m || !m.alive) return null;
