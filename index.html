@@ -144,7 +144,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#1b2138">
-  <script>window.__APP_VER = "c9d3712f9d";</script>
+  <script>window.__APP_VER = "840b5c9d2e";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -1799,7 +1799,23 @@ function startSo4() {
   updateHud();
 }
 /* 👤 so5 — МОРФ: превращается в боссов, бить только выстрелом предметом. 6 попаданий. */
-const МОРФ_ОБЛИКИ = ['spider','zevaka','sportsman','loza2','plesnyak2','polter'];
+/* 🎭 Морф принимает облик ТЕХ БОССОВ, с которыми ты уже сражался (просьба Марка 06.09):
+   берём из хранилища (save.seen) и пройденных этапов. Если ты бился только с пауком —
+   пауком и будет, но как только победишь других, он начнёт «примерять» и их. */
+const МОРФ_ВСЕ = [
+  { kind:'spider',    имя:'МОХНОНОГ',        был:() => (save.seen.spider|0) > 0 || save.stages.araxno },
+  { kind:'zevaka',    имя:'ЗЕВАКА',          был:() => (save.seen.zevaka|0) > 0 || save.stages.or5 },
+  { kind:'sportsman', имя:'СПОРТСМЕН',       был:() => (save.seen.sportsman|0) > 0 || save.stages.sp4 },
+  { kind:'child',     имя:'МАЛЫШ',           был:() => (save.seen.child|0) > 0 || save.stages.noch },
+  { kind:'loza2',     имя:'ЛОЗА-СТАРШАЯ',    был:() => (save.seen.loza2|0) > 0 || save.stages.or3 },
+  { kind:'zhuzha2',   имя:'ЖУЖЖА-КОРОЛЕВА',  был:() => (save.seen.zhuzha2|0) > 0 || save.stages.or3 },
+  { kind:'plesnyak2', имя:'ПЛЕСНЯК-ВЕЛИКАН', был:() => (save.seen.plesnyak2|0) > 0 || save.stages.or3 },
+  { kind:'polter',    имя:'ПОЛТЕРГЕЙСТ',     был:() => (save.seen.polter|0) > 0 },
+];
+function морфДоступные() {
+  const есть = МОРФ_ВСЕ.filter(o => o.был());
+  return есть.length ? есть : [МОРФ_ВСЕ[0]];        // на крайний случай — паук
+}
 function startSo5() {
   if (so.морф) return;
   const zc = SOZ-45;
@@ -1818,19 +1834,30 @@ function startSo5() {
 }
 function морфОблик(i) {
   const m = so.морф; if (!m) return;
-  if (m.mesh) world.remove(m.mesh);
-  const kind = МОРФ_ОБЛИКИ[i % МОРФ_ОБЛИКИ.length];
-  const инфо = GHOSTS[kind] || { color:0xd6d8de, scale:1.5 };
-  // 👤 всегда СВЕТЛО-СЕРЫЙ (Марк), но силуэт — как у копируемого босса
-  const mesh = makeGhostMesh(0xd6d8de);
-  mesh.scale.setScalar(1.3 + (инфо.scale || 1) * 0.55);
+  const пул = морфДоступные();
+  const о = пул[i % пул.length];
+  const инфо = GHOSTS[о.kind] || { color:0xd6d8de, scale:1.5 };
+  // 🎆 ЭФФЕКТНОЕ ПЕРЕВОПЛОЩЕНИЕ (просьба Марка): вспышка, спираль дыма, схлопывание и рост
+  if (m.mesh) {
+    const старый = m.mesh;
+    for (let k = 0; k < 34; k++) {                   // спираль частиц вокруг
+      const a = k/34*Math.PI*4, r = 0.4 + k*0.09;
+      puff(m.x + Math.cos(a)*r, 0.6 + k*0.12, m.z + Math.sin(a)*r, 0xffffff);
+    }
+    const вспышка = new THREE.PointLight(0xffffff, 40, 26);
+    вспышка.position.set(m.x, 2.4, m.z); world.add(вспышка);
+    setTimeout(() => world.remove(вспышка), 260);
+    m.схлоп = { mesh:старый, t:0 };                  // старый облик схлопывается в точку
+  }
+  const mesh = makeGhostMesh(0xd6d8de);              // 👤 всегда СВЕТЛО-СЕРЫЙ, силуэт — по боссу
+  const цель = 1.3 + (инфо.scale || 1) * 0.55;
+  mesh.scale.setScalar(0.05);                        // ...и вырастает из точки
   mesh.position.set(m.x, 1.2, m.z); world.add(mesh);
-  m.mesh = mesh; m.обликИдx = i; m.обликИмя = kind;
-  const имена = { spider:'МОХНОНОГ', zevaka:'ЗЕВАКА', sportsman:'СПОРТСМЕН',
-                  loza2:'ЛОЗА-СТАРШАЯ', plesnyak2:'ПЛЕСНЯК-ВЕЛИКАН', polter:'ПОЛТЕРГЕЙСТ' };
-  bigMsg('🎭 МОРФ ПРЕВРАЩАЕТСЯ: ' + (имена[kind] || '???'), 2.2, '#d6d8de');
-  Snd.ghostMoan();
-  for (let k = 0; k < 18; k++) puff(m.x, rnd(1,4), m.z, 0xd6d8de);
+  m.mesh = mesh; m.цельМасштаб = цель; m.рост = 0;
+  m.обликИдx = i; m.обликИмя = о.kind;
+  bigMsg('🎭 МОРФ ПРЕВРАЩАЕТСЯ:\n' + о.имя, 2.4, '#d6d8de');
+  Snd.ghostMoan(); Snd.tone(520, 0.5, 'sawtooth', 0.22, 120); Snd.noise(0.5, 0.16, 900, 0.8);
+  for (let k = 0; k < 22; k++) puff(m.x + rnd(-1.6,1.6), rnd(0.6,4.4), m.z + rnd(-1.6,1.6), 0xd6d8de);
 }
 function hitMorph(sx, sz, sy) {                      // зовётся из updateShots
   const m = so && so.морф; if (!m || !m.mesh) return false;
@@ -1857,6 +1884,19 @@ function hitMorph(sx, sz, sy) {                      // зовётся из upda
 }
 function updateMorph(dt) {
   const m = so && so.морф; if (!m || !m.mesh || !player) return;
+  // 🎆 анимация превращения: старый облик схлопывается, новый вырастает и крутится
+  if (m.схлоп) { const c = m.схлоп; c.t += dt*3.2;
+    const k = Math.max(0, 1 - c.t);
+    c.mesh.scale.setScalar(Math.max(0.01, c.mesh.scale.x * (1 - dt*6)));
+    c.mesh.rotation.y += dt*14;
+    c.mesh.position.y = 1.2 + c.t*1.6;
+    if (c.t >= 1) { world.remove(c.mesh); m.схлоп = null; } }
+  if (m.цельМасштаб && m.mesh.scale.x < m.цельМасштаб - 0.01) {
+    m.рост += dt;
+    const s = m.mesh.scale.x + (m.цельМасштаб - m.mesh.scale.x) * Math.min(1, dt*5);
+    m.mesh.scale.setScalar(s);
+    m.mesh.rotation.y += dt * 9 * (1 - s/m.цельМасштаб);   // крутится, пока растёт
+  }
   // кружит вокруг игрока и подлетает
   const dx = player.x-m.x, dz = player.z-m.z, d = Math.hypot(dx, dz) || 1;
   const скор = d > 7 ? 2.6 : 1.2;
@@ -2189,7 +2229,13 @@ function buildSportDoor() {
     new THREE.MeshStandardMaterial({ color:0xffffff, emissive:0x888888, emissiveIntensity:0.4 }));
   мяч.position.set(31.7, 3.4, -53); world.add(мяч);
   const L = new THREE.PointLight(0xffa500, 0, 12); L.position.set(31, 3, -53); world.add(L);
-  спортДверь = { x:32, z:-53, mesh:дверь, мяч, light:L, wall:{ x1:30.5, z1:-53, x2:33.5, z2:-53 } };
+  // 🔆 столб света у двери — чтобы её было видно с любого места оранжереи (Марк её не нашёл)
+  const столб = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.4, 9, 14, 1, true),
+    new THREE.MeshBasicMaterial({ color:0xffa500, transparent:true, opacity:0.0,
+      side:THREE.DoubleSide, depthWrite:false }));
+  столб.position.set(30.6, 4.5, -53); world.add(столб);
+  спортДверь = { x:32, z:-53, mesh:дверь, мяч, light:L, столб,
+                 wall:{ x1:30.5, z1:-53, x2:33.5, z2:-53 } };
   walls.push(спортДверь.wall);
 }
 function updateSportDoor(dt) {
@@ -2198,6 +2244,13 @@ function updateSportDoor(dt) {
   спортДверь.light.intensity = открыта ? (10 + Math.sin(time*3)*4) : 0;
   спортДверь.мяч.rotation.y += dt * (открыта ? 2 : 0.2);
   спортДверь.мяч.material.emissiveIntensity = открыта ? 1.2 : 0.4;
+  спортДверь.столб.material.opacity = открыта ? (0.16 + Math.sin(time*2)*0.07) : 0;
+  // 🧭 напоминаем, где дверь, пока спорт не начат
+  if (открыта && !save.stages.sp1 && !спортДверь._сказал &&
+      player.x > 10 && player.x < 33 && player.z < -49) {
+    спортДверь._сказал = true;
+    hint('🏀 Дверь в спортзал — СПРАВА в стене оранжереи (оранжевый свет)');
+  }
   if (Math.hypot(спортДверь.x-player.x, спортДверь.z-player.z) > 2.6) { спортДверь._рядом = false; return; }
   if (!открыта) { if (!спортДверь._буркнул) { спортДверь._буркнул = true;
       bigMsg('🔒 Сначала победи Зеваку', 1.6, '#f97316'); } return; }
@@ -2392,6 +2445,15 @@ function updateOrx(dt) {
     say('💙 Дом', 'Этот цветок разбудил Зеваку. Возвращайся к большой грядке!', 7);
     task = '🌺 Вернись в большую оранжерею — Зевака ждёт';
     updateHud();
+    // ⚠️ Зевака должен вылезти СРАЗУ после цветка (жалоба Марка 06.09: «взял цветок, вышел — а его нет»).
+    // Раньше он ждал, пока переловят жильцов, которые тихо заспавнились при входе в этап.
+    if (!save.stages.or5 && !zevaka) {
+      ghDone = true;
+      ghosts.filter(g => g.alive && ['loza','zhuzha','plesnyak'].includes(g.kind))
+            .forEach(g => { g.alive = false; world.remove(g.mesh); });
+      ghosts = ghosts.filter(g => g.alive);
+      setTimeout(() => { if (state === 'play' && !zevaka) spawnZevaka(21, -73); }, 2500);
+    }
   }
   if (ц && !ц.взят) ц.mesh.rotation.y += dt * 0.8;
 }
@@ -2588,12 +2650,14 @@ function updateGreenhouse(dt) {
   if (!насос) return;
   // 🔑 переловил жильцов → Домоседы крадут ключи (этап 2, Марк 05.09);
   // 🌺 Зевака выходит ТОЛЬКО после золотого цветка из лабиринта (этап 4)
-  if (насос.включён && !zevaka && !save.stages.or5 && !ghDone) {
+  // ⚠️ Гейт `!save.stages.or5` раньше стоял на ВСЁМ блоке: победил Зеваку однажды —
+  //    и Домоседы больше не приходили никогда (жалоба Марка 06.09). Теперь гейт только у Зеваки.
+  if (насос.включён && !zevaka) {
     const живы = ghosts.filter(g => g.alive && ['loza','zhuzha','plesnyak'].includes(g.kind)).length;
     const пойманы = ['loza','zhuzha','plesnyak'].every(k => (save.seen[k] | 0) > 0);
     if (!живы && пойманы && !save.stages.or2 && !orx.started2)
       setTimeout(() => { if (state === 'play') startOr2(); }, 1500);
-    if (!живы && пойманы && save.stages.or4)
+    if (!живы && пойманы && save.stages.or4 && !save.stages.or5 && !ghDone)
       { ghDone = true; setTimeout(() => { if (state === 'play') spawnZevaka(21, -73); }, 1500); }
   }
   насос.колесо.rotation.z += насос.включён ? dt*3 : 0;
@@ -2618,7 +2682,9 @@ function updateGreenhouse(dt) {
     включитьНасос();
 }
 let ручка = null;
-function включитьНасос() {
+// тихо=true — только пустить воду (для входа на поздние этапы из меню):
+// БЕЗ спавна жильцов, иначе они «висят» живыми и блокируют выход Зеваки (баг, Марк 06.09)
+function включитьНасос(тихо) {
   насос.включён = true;
   растения.forEach(р => р.цель = 1);
   save.stages.or1 = true; saveNow();
@@ -2631,9 +2697,13 @@ function включитьНасос() {
   addCrystal('oranj', 15, -55, 1.0, true);
   addCrystal('oranj', 27, -60, 1.0, true);
   addCrystal('oranj', 16, -70, 1.0, true);
-  новыйВид('loza', 16, -58, 2000);
-  новыйВид('zhuzha', 26, -63, 8000);
-  новыйВид('plesnyak', 21, -73, 15000);
+  if (!тихо) {                                      // жильцы — только при честном запуске насоса
+    новыйВид('loza', 16, -58, 2000);
+    новыйВид('zhuzha', 26, -63, 8000);
+    новыйВид('plesnyak', 21, -73, 15000);
+  } else {                                          // тихий вход из меню: считаем жильцов пройденными
+    ['loza','zhuzha','plesnyak'].forEach(k => { if (!(save.seen[k] | 0)) save.seen[k] = 1; });
+  }
   updateHud();
 }
 function openGreenhouse() {
@@ -3488,23 +3558,23 @@ function skipTo(id) {
     player.x = -19; player.z = -11; player.yaw = Math.PI;
     task = '🕷 Прачечная в глубине гаража → мусоропровод'; hint('Иди в прачечную и прыгай в мусоропровод'); }
   if (id === 'or5') { доБиблиотеки(); дайСпектр(); laundryOpen = true; openGreenhouse();
-    включитьНасос(); player.x = 21; player.z = -66; player.yaw = Math.PI;
+    включитьНасос(true); player.x = 21; player.z = -66; player.yaw = Math.PI;
     setTimeout(() => { if (state === 'play') spawnZevaka(21, -73); }, 1200); }
   if (id === 'or1') { доБиблиотеки(); дайСпектр(); laundryOpen = true; openGreenhouse();
     player.x = 21; player.z = -54; player.yaw = Math.PI; }
   const жильцыПойманы = () => ['loza','zhuzha','plesnyak'].forEach(k => {
     if (!(save.seen[k] | 0)) save.seen[k] = 1; });
   if (id === 'or2') { доБиблиотеки(); дайСпектр(); laundryOpen = true; openGreenhouse();
-    включитьНасос(); жильцыПойманы();
+    включитьНасос(true); жильцыПойманы();
     player.x = 21; player.z = -58; player.yaw = Math.PI;
     setTimeout(() => { if (state === 'play') startOr2(); }, 1200); }
   if (id === 'or3') { доБиблиотеки(); дайСпектр(); laundryOpen = true; openGreenhouse();
-    включитьНасос(); жильцыПойманы(); save.stages.or2 = true;
+    включитьНасос(true); жильцыПойманы(); save.stages.or2 = true;
     открытьНочныеВорота(true);
     player.x = 21; player.z = -76; player.yaw = Math.PI;
     task = '🌙 Войди в ночную оранжерею за воротами'; }
   if (id === 'or4') { доБиблиотеки(); дайСпектр(); laundryOpen = true; openGreenhouse();
-    включитьНасос(); жильцыПойманы(); save.stages.or2 = true; save.stages.or3 = true;
+    включитьНасос(true); жильцыПойманы(); save.stages.or2 = true; save.stages.or3 = true;
     открытьНочныеВорота(true); открытьЛабиринт(true);
     player.x = 12; player.z = -89; player.yaw = Math.PI/2;
     task = '🌿 Пройди лабиринт до золотого цветка';
@@ -5043,6 +5113,7 @@ window.__dbg = {
     if (on) { player.x = t.x; player.z = t.z + 4; this.look(t.x, t.z, 2); }
     else { player.yaw += Math.PI; }                 // отвернуться
     return true; },
+  get morphPool(){ return морфДоступные().map(o => o.kind); },
   morphShot(){ const m = so && so.морф; if (!m || !m.mesh) return null;
     return hitMorph(m.x, m.z, 1.5); },
   toSoMouse(){ const m = so && so.мышь; if (!m || !m.alive) return null;
