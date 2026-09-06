@@ -144,7 +144,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#1b2138">
-  <script>window.__APP_VER = "bc2d39ef7a";</script>
+  <script>window.__APP_VER = "c182e69c4a";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -217,6 +217,7 @@
 <div class="screen hidden" id="shop">
   <h1 style="font-size:clamp(20px,4.4vw,34px)">⬆️ УЛУЧШЕНИЯ ВИХРЯ</h1>
   <div class="sub">У тебя <span class="money" id="shopGems">💎 0</span> кристаллов</div>
+  <div class="sub" id="shopGoldNote" style="color:#ffd700;font-weight:800"></div>
   <div class="grid g2" id="shopGrid"></div>
   <button class="btn" id="shopBack">НАЗАД</button>
 </div>
@@ -494,10 +495,20 @@ scene.add(camera);                       // камера в графе сцен�
 /* 🖐 ВИД ОТ ПЕРВОГО ЛИЦА: держим трубу со щёткой, за спиной мешок (Марк, 22.08).
    Всё висит на камере, поэтому качается вместе со взглядом. */
 let viewModel = null, vmBrush = null, vmBag = null, vmTube = null;
+/* 🏆 ЗОЛОТОЙ ВИХРЬ-3000 (заказ Марка 06.09): открывается, когда куплены ВСЕ улучшения.
+   Труба, щётка и мешок становятся золотыми и светятся. */
+function всёКуплено() { return UPGRADES.every(u => up(u.id) >= u.max); }
 function buildViewModel() {
   const g = new THREE.Group();
-  const хром = new THREE.MeshStandardMaterial({ color:0xc3ccd8, roughness:0.28, metalness:0.85 });
-  const синий = new THREE.MeshStandardMaterial({ color:0x2f6fbf, roughness:0.35, metalness:0.35 });
+  const золотой = всёКуплено();
+  const хром = золотой
+    ? new THREE.MeshStandardMaterial({ color:0xffd700, roughness:0.16, metalness:1.0,
+        emissive:0x6a4e00, emissiveIntensity:0.35 })
+    : new THREE.MeshStandardMaterial({ color:0xc3ccd8, roughness:0.28, metalness:0.85 });
+  const синий = золотой
+    ? new THREE.MeshStandardMaterial({ color:0xffcf3a, roughness:0.2, metalness:0.95,
+        emissive:0x7a5600, emissiveIntensity:0.4 })
+    : new THREE.MeshStandardMaterial({ color:0x2f6fbf, roughness:0.35, metalness:0.35 });
   const резина = new THREE.MeshStandardMaterial({ color:0x1b1f27, roughness:0.9 });
   const кожа = new THREE.MeshStandardMaterial({ color:0xd9a074, roughness:0.85 });
 
@@ -545,7 +556,19 @@ function buildViewModel() {
   g.visible = false;
   camera.add(g);
   viewModel = g;
-  const св = new THREE.PointLight(0xffffff, 0.9, 2.2); св.position.set(0.15, -0.1, -0.5); camera.add(св);
+  const св = new THREE.PointLight(золотой ? 0xffe9a0 : 0xffffff, золотой ? 1.5 : 0.9, 2.4);
+  св.position.set(0.15, -0.1, -0.5); camera.add(св); g.userData.свет = св;
+}
+// пересобрать прибор (после покупки последнего улучшения — чтобы позолота появилась сразу)
+function перестроитьПрибор() {
+  const виден = viewModel ? viewModel.visible : false;
+  const вРуке = held.slice();
+  if (viewModel) { camera.remove(viewModel); }
+  if (viewModel && viewModel.userData.свет) camera.remove(viewModel.userData.свет);
+  viewModel = null; vmBrush = null; vmBag = null; vmTube = null;
+  buildViewModel();
+  viewModel.visible = виден;
+  вРуке.forEach(p => attachToBrush(p));               // предметы из трубы вернуть на щётку
 }
 /* 🪑 засосанный предмет прилипает к щётке и трясётся — Марк просил его видеть */
 function attachToBrush(p) {
@@ -3698,6 +3721,12 @@ function renderVault() {
 }
 function renderShop() {
   $('shopGems').textContent = '💎 ' + save.gems;
+  // 🏆 цель: купить всё → золотой ВИХРЬ-3000
+  const куплено = UPGRADES.reduce((s, u) => s + up(u.id), 0);
+  const всего = UPGRADES.reduce((s, u) => s + u.max, 0);
+  $('shopGoldNote').textContent = всёКуплено()
+    ? '🏆 ЗОЛОТОЙ ВИХРЬ-3000 ОТКРЫТ! Прибор в руках стал золотым.'
+    : '🏆 Купи ВСЕ улучшения (' + куплено + '/' + всего + ') — и ВИХРЬ станет ЗОЛОТЫМ!';
   const g = $('shopGrid'); g.innerHTML = '';
   UPGRADES.forEach(u => {
     const l = up(u.id), макс = l >= u.max, цена = макс ? 0 : u.cost[l];
@@ -3709,8 +3738,16 @@ function renderShop() {
     el.onclick = () => {
       if (макс) return;
       if (save.gems < цена) { bigMsg('💎 не хватает кристаллов', 1.4, '#f87171'); return; }
+      const былоЗолото = всёКуплено();
       save.gems -= цена; save.up[u.id] = l + 1; saveNow();
       Snd.init(); Snd.catchWin(); renderShop(); updateHud();
+      // 🏆 куплено ВСЁ → ВИХРЬ становится золотым (заказ Марка)
+      if (!былоЗолото && всёКуплено()) {
+        перестроитьПрибор();
+        bigMsg('🏆 ЗОЛОТОЙ ВИХРЬ-3000!\nвсе улучшения куплены', 4.5, '#ffd700');
+        Snd.tone(880, 0.3, 'triangle', 0.25, 1400);
+        setTimeout(() => Snd.catchWin(), 400);
+      }
     };
     g.appendChild(el);
   });
@@ -4997,6 +5034,10 @@ window.__dbg = {
     : (poolBoss ? null : (save.stages.noch ? 'пройден' : null)); },
   toPoolBoss(){ if (!poolBoss || !poolBoss.alive) return null;
     player.x = poolBoss.x + 2.6; player.z = poolBoss.z + 2.6; this.look(poolBoss.x, poolBoss.z, poolBoss.y); return true; },
+  get gold(){ return { всёКуплено:всёКуплено(),
+    цветТрубы: vmTube ? '#' + vmTube.material.color.getHexString() : null,
+    заметка: $('shopGoldNote') ? $('shopGoldNote').textContent : null }; },
+  buyAll(){ UPGRADES.forEach(u => save.up[u.id] = u.max); saveNow(); перестроитьПрибор(); return всёКуплено(); },
   setDiff(d){ save.diff = d; return save.diff; },
   markStage(id){ save.stages[id] = true; return последнийЧекпоинт(); },
   checkpoint(){ return последнийЧекпоинт(); },
