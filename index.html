@@ -144,7 +144,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#1b2138">
-  <script>window.__APP_VER = "c182e69c4a";</script>
+  <script>window.__APP_VER = "c9d3712f9d";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -218,6 +218,8 @@
   <h1 style="font-size:clamp(20px,4.4vw,34px)">⬆️ УЛУЧШЕНИЯ ВИХРЯ</h1>
   <div class="sub">У тебя <span class="money" id="shopGems">💎 0</span> кристаллов</div>
   <div class="sub" id="shopGoldNote" style="color:#ffd700;font-weight:800"></div>
+  <div class="sub" style="margin-top:6px">🎨 Цвет ВИХРЯ-3000:</div>
+  <div class="grid" id="vihrColors" style="justify-content:center;gap:10px;margin-bottom:8px"></div>
   <div class="grid g2" id="shopGrid"></div>
   <button class="btn" id="shopBack">НАЗАД</button>
 </div>
@@ -422,7 +424,7 @@ const МИРЫ = [
 const STAGES = МИРЫ.flatMap(m => m.stages);
 
 const SAVE_KEY = 'phantom_saves_v1';
-function blankSave() { return { used:false, diff:'normal', gems:0, seen:{}, up:{}, stages:{}, gemsTaken:{} }; }
+function blankSave() { return { used:false, diff:'normal', gems:0, seen:{}, up:{}, stages:{}, gemsTaken:{}, vihrColor:'blue' }; }
 let slots = [blankSave(), blankSave(), blankSave()], slotIdx = 0;
 let save = slots[0];
 function loadAll() {
@@ -498,9 +500,11 @@ let viewModel = null, vmBrush = null, vmBag = null, vmTube = null;
 /* 🏆 ЗОЛОТОЙ ВИХРЬ-3000 (заказ Марка 06.09): открывается, когда куплены ВСЕ улучшения.
    Труба, щётка и мешок становятся золотыми и светятся. */
 function всёКуплено() { return UPGRADES.every(u => up(u.id) >= u.max); }
+// 🎨 цвет прибора: 'blue' | 'gold' (золото доступно, когда куплены все улучшения)
+function цветВихря() { return (save.vihrColor === 'gold' && всёКуплено()) ? 'gold' : 'blue'; }
 function buildViewModel() {
   const g = new THREE.Group();
-  const золотой = всёКуплено();
+  const золотой = цветВихря() === 'gold';
   const хром = золотой
     ? new THREE.MeshStandardMaterial({ color:0xffd700, roughness:0.16, metalness:1.0,
         emissive:0x6a4e00, emissiveIntensity:0.35 })
@@ -3725,8 +3729,22 @@ function renderShop() {
   const куплено = UPGRADES.reduce((s, u) => s + up(u.id), 0);
   const всего = UPGRADES.reduce((s, u) => s + u.max, 0);
   $('shopGoldNote').textContent = всёКуплено()
-    ? '🏆 ЗОЛОТОЙ ВИХРЬ-3000 ОТКРЫТ! Прибор в руках стал золотым.'
-    : '🏆 Купи ВСЕ улучшения (' + куплено + '/' + всего + ') — и ВИХРЬ станет ЗОЛОТЫМ!';
+    ? '🏆 ЗОЛОТОЙ ВИХРЬ-3000 ОТКРЫТ! Выбирай цвет ниже.'
+    : '🏆 Купи ВСЕ улучшения (' + куплено + '/' + всего + ') — и откроется ЗОЛОТОЙ ВИХРЬ!';
+  // 🎨 выбор цвета прибора: синий всегда, золотой — после всех улучшений
+  const cw = $('vihrColors'); cw.innerHTML = '';
+  [['blue','🔵 Синий', true], ['gold','🏆 Золотой', всёКуплено()]].forEach(([id, имя, доступен]) => {
+    const el = document.createElement('div');
+    const выбран = цветВихря() === id;
+    el.className = 'tile' + (выбран ? ' on' : доступен ? '' : ' lock');
+    el.style.cssText = 'min-width:130px;text-align:center;cursor:' + (доступен ? 'pointer' : 'not-allowed');
+    el.innerHTML = '<h3>' + (доступен ? имя : '🔒 ' + имя) + '</h3>' +
+      '<span class="pill">' + (выбран ? 'выбран' : доступен ? 'надеть' : 'купи все улучшения') + '</span>';
+    el.onclick = () => { if (!доступен) { bigMsg('🔒 Сначала купи все улучшения', 1.6, '#ffd700'); return; }
+      save.vihrColor = id; saveNow(); перестроитьПрибор(); renderShop();
+      Snd.init(); Snd.catchWin(); };
+    cw.appendChild(el);
+  });
   const g = $('shopGrid'); g.innerHTML = '';
   UPGRADES.forEach(u => {
     const l = up(u.id), макс = l >= u.max, цена = макс ? 0 : u.cost[l];
@@ -3741,8 +3759,9 @@ function renderShop() {
       const былоЗолото = всёКуплено();
       save.gems -= цена; save.up[u.id] = l + 1; saveNow();
       Snd.init(); Snd.catchWin(); renderShop(); updateHud();
-      // 🏆 куплено ВСЁ → ВИХРЬ становится золотым (заказ Марка)
+      // 🏆 куплено ВСЁ → открывается ЗОЛОТОЙ ВИХРЬ (и сразу надевается)
       if (!былоЗолото && всёКуплено()) {
+        save.vihrColor = 'gold'; saveNow();
         перестроитьПрибор();
         bigMsg('🏆 ЗОЛОТОЙ ВИХРЬ-3000!\nвсе улучшения куплены', 4.5, '#ffd700');
         Snd.tone(880, 0.3, 'triangle', 0.25, 1400);
@@ -5037,7 +5056,8 @@ window.__dbg = {
   get gold(){ return { всёКуплено:всёКуплено(),
     цветТрубы: vmTube ? '#' + vmTube.material.color.getHexString() : null,
     заметка: $('shopGoldNote') ? $('shopGoldNote').textContent : null }; },
-  buyAll(){ UPGRADES.forEach(u => save.up[u.id] = u.max); saveNow(); перестроитьПрибор(); return всёКуплено(); },
+  buyAll(){ UPGRADES.forEach(u => save.up[u.id] = u.max); save.vihrColor = 'gold'; saveNow(); перестроитьПрибор(); return всёКуплено(); },
+  setVihr(c){ save.vihrColor = c; saveNow(); перестроитьПрибор(); return цветВихря(); },
   setDiff(d){ save.diff = d; return save.diff; },
   markStage(id){ save.stages[id] = true; return последнийЧекпоинт(); },
   checkpoint(){ return последнийЧекпоинт(); },
