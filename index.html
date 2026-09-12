@@ -144,7 +144,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#1b2138">
-  <script>window.__APP_VER = "3d98a23460";</script>
+  <script>window.__APP_VER = "ee1f029d5f";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -1707,48 +1707,112 @@ function buildTrophyHall() {
       emissive:0x6a5210, emissiveIntensity:0.5 }));
   табличка.position.set(SOX, 1.3, zc + 1.75); world.add(табличка);
   addSolidBox(SOX, zc, 3.2, 3.2);
-  so.трофей = { x:SOX, z:zc, морф, стекло, крышка, свет, сбежал:false, увиден:false, отворотT:0 };
+  /* 🔊 МЕСТО ГРОХОТА (сцена по замыслу Марка 12.09): в комнате перед залом с полки
+     слетает кубок. Туда ты и пойдёшь смотреть — а витрина за спиной опустеет. */
+  const шx = SOX-9, шz = SOZ-32, шум = new THREE.Group();
+  const упавший = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.2, 0.62, 12),
+    new THREE.MeshStandardMaterial({ color:0xd8c078, metalness:0.9, roughness:0.25 }));
+  упавший.rotation.z = Math.PI/2; упавший.position.set(0, 0.22, 0); шум.add(упавший);
+  for (let i = 0; i < 6; i++) {
+    const оск = new THREE.Mesh(new THREE.TetrahedronGeometry(0.13),
+      new THREE.MeshStandardMaterial({ color:0xbfe8ff, transparent:true, opacity:0.7,
+        emissive:0x3a6a8a, emissiveIntensity:0.6 }));
+    оск.position.set(rnd(-1.1, 1.1), 0.12, rnd(-1.1, 1.1)); оск.rotation.set(rnd(0,3), rnd(0,3), rnd(0,3));
+    шум.add(оск);
+  }
+  const маяк = new THREE.PointLight(0xffd166, 0, 16); маяк.position.set(0, 1.5, 0); шум.add(маяк);
+  шум.position.set(шx, 0, шz); шум.visible = false; world.add(шум);
+  so.трофей = { x:SOX, z:zc, морф, стекло, крышка, свет, сбежал:false, увиден:false, отворотT:0,
+                фаза:'ждём', t:0, нытьё:0, шум:{ x:шx, z:шz, mesh:шум, маяк } };
 }
 function startSo3() {
-  if (!so.трофей) return;
-  so.трофей.сбежал = false; so.трофей.увиден = false; so.трофей.отворотT = 0;
-  so.трофей.морф.visible = true; so.трофей.стекло.visible = true; so.трофей.свет.intensity = 7;
+  const t = so.трофей; if (!t) return;
+  t.сбежал = false; t.увиден = false; t.отворотT = 0; t.фаза = 'ждём'; t.t = 0; t.нытьё = 0;
+  t.морф.visible = true; t.стекло.visible = true; t.свет.intensity = 7;
+  t.стекло.material.color.setHex(0xbfe8ff);
+  t.шум.mesh.visible = false; t.шум.маяк.intensity = 0;
   bigMsg('🏆 ТРОФЕЙНЫЙ ЗАЛ\nв глубине дома светится витрина', 3.4, '#d6d8de');
   say('💙 Дом', 'Тут они держали свой главный трофей. Подойди и посмотри…', 7);
   task = '🏆 Дойди до витрины с главным трофеем';
   updateHud();
 }
+/* ⚡ ГРОМ И ГРОХОТ — сцена по замыслу Марка 12.09. */
+function трофейГрохот() {
+  const t = so.трофей; t.фаза = 'шум'; t.t = 0;
+  lightning.flash = 1;                                   // ⚡ вспышка на весь дом
+  setTimeout(() => { if (state === 'play') Snd.thunder(); }, 500);
+  Snd.tone(90, 0.6, 'sawtooth', 0.3, 50); Snd.noise(0.55, 0.26, 420, 1);
+  t.шум.mesh.visible = true;
+  bigMsg('⚡ ГРОМ…\nи что-то с грохотом упало в комнатах', 3.4, '#fca5a5');
+  say('💙 Дом', 'Ой! Там что-то рухнуло. Сходи глянь, что это было, — я послежу за витриной.', 9);
+  task = '🔊 Сходи проверь, что грохнуло в комнатах';
+  hint('Иди на жёлтый огонёк — он в комнате перед залом');
+  updateHud();
+}
+function трофейСбежал() {
+  const t = so.трофей; t.фаза = 'сбежал'; t.t = 0; t.сбежал = true; t.нытьё = 0;
+  t.шум.маяк.intensity = 0;
+  t.морф.visible = false; t.свет.intensity = 0;
+  t.стекло.material.color.setHex(0xff8a8a);
+  Snd.tone(120, 0.7, 'sawtooth', 0.28, 60); Snd.noise(0.7, 0.2, 300, 1); Snd.ghostMoan();
+  bigMsg('💥 СЗАДИ ЗВЯКНУЛО СТЕКЛО!', 3, '#fca5a5');
+  say('💙 Дом', 'Упал просто кубок… СТОЙ. Ты слышал? Витрина! Бегом назад!', 9);
+  task = '🏆 Скорее обратно к витрине!';
+  updateHud();
+}
+function трофейПусто() {
+  const t = so.трофей; t.фаза = 'готово';
+  save.stages.so3 = true; saveNow();
+  for (let i = 0; i < 26; i++) puff(t.x + rnd(-1.4,1.4), rnd(1.5,4.5), t.z + rnd(-1.4,1.4), 0xd6d8de);
+  // 🔦 свежий след Морфа от витрины к выходу — видно только Спектром (связка с новой механикой)
+  for (let i = 0; i <= 13; i++)
+    поставитьСлед(t.x + rnd(-0.5,0.5), t.z + 1.8 + i*1.1, Math.PI, 0xd6d8de);
+  Snd.ghostMoan();
+  bigMsg('💨 ВИТРИНА ПУСТА!\nМорф сбежал…', 4, '#fca5a5');
+  say('💙 Дом', 'Я отвернулся на секунду… Он на свободе. Включи 🔦 СПЕКТР — видишь следы? ' +
+      'Он ушёл в комнаты. Теперь он спрячется среди других — жди облаву.', 12);
+  task = '👻🐭 Облава: он где-то среди них';
+  updateHud();
+  setTimeout(() => { if (state === 'play') startSo4(); }, 3000);
+}
+/* ⚠️ БЫЛО (жалоба Марка 12.09): трофей сбегал, стоило ОТВЕРНУТЬСЯ на 2,2 секунды.
+   А в доме сама по себе бьёт гроза — ребёнок оборачивался на случайный гром, и витрина
+   пустела «ни с того ни с сего», сцены он вообще не видел. Теперь это НАСТОЯЩАЯ сцена
+   по замыслу Марка: подошёл → ⚡ гром и грохот в комнатах → пошёл проверить →
+   там всего лишь упавший кубок → вернулся, а витрина пуста. Случайный поворот головы
+   больше ничего не ломает. */
 function updateTrophy(dt) {
   const t = so && so.трофей; if (!t || !player) return;
   t.морф.rotation.y += dt * 0.6;
   t.морф.position.y = 1.9 + Math.sin(time*1.4)*0.12;
-  if (t.сбежал) return;
+  if (t.фаза === 'готово') return;
   const d = Math.hypot(t.x-player.x, t.z-player.z);
-  if (!t.увиден && d < 5.5) {                        // рассмотрел трофей
-    t.увиден = true;
-    bigMsg('👤 ГЛАВНЫЙ ТРОФЕЙ…\nи он смотрит на тебя', 3.6, '#d6d8de');
-    say('💙 Дом', 'Табличка: «МОРФ. Пойман Призраковыми». Только… он будто живой. Не отворачивайся!', 9);
-    task = '👤 Не отворачивайся от витрины…';
-    Snd.ghostMoan(); updateHud();
+  if (!t.увиден) {                                   // 1️⃣ подойти и рассмотреть
+    if (d < 5.5) {
+      t.увиден = true; t.фаза = 'смотрю'; t.t = 0;
+      bigMsg('👤 ГЛАВНЫЙ ТРОФЕЙ…\nи он смотрит на тебя', 3.6, '#d6d8de');
+      say('💙 Дом', 'Табличка: «МОРФ. Пойман Призраковыми». Только… он будто живой.', 9);
+      task = '👤 Рассмотри трофей в витрине';
+      Snd.ghostMoan(); updateHud();
+    }
+    return;
   }
-  if (!t.увиден) return;
-  // смотрит ли игрок на витрину? (луч взгляда vs направление к витрине)
-  const f = forward();
-  const dx = (t.x-player.x)/(d||1), dz = (t.z-player.z)/(d||1);
-  const смотрит = (f.x*dx + f.z*dz) > 0.35 && d < 22;
-  t.отворотT = смотрит ? 0 : t.отворотT + dt;
-  if (t.отворотT > 2.2) {                            // отвернулся — трофей сбежал
-    t.сбежал = true;
-    t.морф.visible = false; t.свет.intensity = 0;
-    t.стекло.material.color.setHex(0xff8a8a);
-    save.stages.so3 = true; saveNow();
-    Snd.tone(120, 0.7, 'sawtooth', 0.28, 60); Snd.noise(0.7, 0.2, 300, 1); Snd.ghostMoan();
-    for (let i = 0; i < 26; i++) puff(t.x + rnd(-1.4,1.4), rnd(1.5,4.5), t.z + rnd(-1.4,1.4), 0xd6d8de);
-    bigMsg('💨 ВИТРИНА ПУСТА!\nМорф сбежал…', 4, '#fca5a5');
-    say('💙 Дом', 'Я отвернулся на секунду… Он на свободе. Теперь он спрячется среди других — жди облаву.', 10);
-    task = '👻🐭 Облава: он где-то среди них';
-    updateHud();
-    setTimeout(() => { if (state === 'play') startSo4(); }, 3000);
+  t.t += dt;
+  if (t.фаза === 'смотрю') { if (t.t > 4) трофейГрохот(); return; }
+  if (t.фаза === 'шум') {                            // 2️⃣ сходить на грохот
+    t.шум.маяк.intensity = 5 + Math.sin(time*4)*3;   // маячок пульсирует — видно, куда идти
+    const dш = Math.hypot(t.шум.x-player.x, t.шум.z-player.z);
+    if (dш < 4.5 || d > 16) трофейСбежал();
+    else if (t.t > 14 && t.нытьё < 1) { t.нытьё = 1;
+      say('💙 Дом', 'Ну же, глянь, что там упало. Видишь жёлтый огонёк в комнате?', 7); }
+    else if (t.t > 28 && t.нытьё < 2) { t.нытьё = 2;
+      bigMsg('🔊 Иди на жёлтый огонёк в комнатах', 2.6, '#ffd166'); }
+    return;
+  }
+  if (t.фаза === 'сбежал') {                         // 3️⃣ вернуться к витрине
+    if (d < 7) трофейПусто();
+    else if (t.t > 14 && t.нытьё < 1) { t.нытьё = 1;
+      bigMsg('🏆 Вернись к витрине!', 2.4, '#fca5a5'); }
   }
 }
 function startSo1() {
@@ -1766,7 +1830,7 @@ function startSo1() {
   bigMsg('🐭 ПРИЗРАК-МЫШЬ УТАЩИЛ КЛЮЧ!\nдогони его', 3.6, '#7dd3fc');
   say('💙 Дом', 'Ключ от дома Призраковых был тут… а теперь его тащит эта мышь. Догоняй!', 8);
   task = '🐭 Догони призрака-мышь с ключом';
-  hint('Беги за мышью (Shift — бег). Догнал — она бросит ключ');
+  hint('Беги за мышью (Shift — бег). Потерял её? Включи 🔦 СПЕКТР (G) — увидишь светящиеся следы');
   updateHud();
 }
 /* 🏚 so2 — ОСМОТР КОМНАТ: по дому расселись призраки, перелови всех. */
@@ -1816,24 +1880,92 @@ function морфДоступные() {
   const есть = МОРФ_ВСЕ.filter(o => o.был());
   return есть.length ? есть : [МОРФ_ВСЕ[0]];        // на крайний случай — паук
 }
+/* 👤 БОЙ С МОРФОМ — схема Марка 12.09, в два приёма:
+   1️⃣ он в ОБЛИКЕ босса — луч бесполезен, надо ВЫСТРЕЛИТЬ в него ящиком → облик разбивается;
+   2️⃣ настоящий Морф вылез — теперь ДЕРЖИ ВСАСЫВАНИЕ, пока не вытянешь его целиком;
+   3️⃣ вытянул — он ИСЧЕЗАЕТ и прячется в доме: ищи 🔦 СПЕКТРОМ по светящимся следам,
+      поймал в луч — он снова принимает облик следующего босса. Три круга — и всё. */
 function startSo5() {
   if (so.морф) return;
   const zc = SOZ-45;
-  const gh = spawnGhost('polter', SOX, zc-2);        // база — потом перекрасим/переоденем
-  gh.mesh.visible = false;
-  so.морф = { gh, попаданий:0, нужно:6, обликИдx:0, mesh:null, x:SOX, z:zc-2, cd:0, уязвим:true };
+  so.морф = { жизни:0, нужно:3, попаданий:0, обликИдx:0, mesh:null, x:SOX, z:zc-2, cd:0,
+              фаза:'облик', тяга:0, окно:0, найд:0, прятки:0 };
   морфОблик(0);
-  // 📦 ящики-снаряды по залу — ими и стрелять
+  // 📦 ящики-снаряды по залу — ими и разбивать облик
   for (const [x,z] of [[SOX-9,zc-3],[SOX+9,zc-3],[SOX-9,zc+3],[SOX+9,zc+3],[SOX-13,zc],[SOX+13,zc]])
     addProp('бочка', x, z, 1.2, 1.6, 1.2, true);
   Snd.music(true, 'boss');
-  bigMsg('👤 МОРФ!\nон принимает облик боссов — стреляй по нему предметами', 4.5, '#d6d8de');
-  say('💙 Дом', 'Луч его не берёт — он меняет форму. Засасывай ящики и СТРЕЛЯЙ. Шесть попаданий!', 10);
-  task = '👤 МОРФ: попаданий 0/6';
+  bigMsg('👤 МОРФ!\nв облике босса луч его не берёт — СТРЕЛЯЙ ящиком', 4.5, '#d6d8de');
+  say('💙 Дом', 'Сбей с него облик выстрелом — а как вылезет настоящий, ДЕРЖИ ВСАСЫВАНИЕ ' +
+      'и тяни его. Три раза — и он твой.', 11);
+  task = '👤 МОРФ: 0/3 — сбей облик выстрелом';
   updateHud();
+}
+function морфВылез() {
+  const m = so.морф;
+  m.фаза = 'вылез'; m.тяга = 0; m.окно = 15;
+  m.цельМасштаб = 1.15;                              // облик разбит — настоящий Морф МЕЛКИЙ
+  m.mesh.traverse(o => { if (o.material && o.material.emissive) {
+    o.material.emissive.setHex(0xffffff); o.material.emissiveIntensity = 1.1; } });
+  Snd.ejectSfx(); Snd.tone(660, 0.4, 'triangle', 0.24, 200);
+  for (let k = 0; k < 30; k++) puff(m.x + rnd(-2,2), rnd(1,4.5), m.z + rnd(-2,2), 0xffffff);
+  bigMsg('💥 ОБЛИК РАЗБИТ!\nВСАСЫВАЙ ЕГО — держи кнопку', 2.8, '#fde68a');
+  say('💙 Дом', 'Вот он, настоящий! Наводи луч и ТЯНИ, не отпускай!', 7);
+  task = '🌀 ТЯНИ МОРФА ЛУЧОМ! ' + m.жизни + '/' + m.нужно;
+  updateHud();
+}
+function морфВытянут() {
+  const m = so.морф;
+  m.жизни++; m.попаданий = m.жизни;
+  Snd.catchWin();
+  for (let k = 0; k < 34; k++) puff(m.x + rnd(-2,2), rnd(1,5), m.z + rnd(-2,2), 0xfde68a);
+  if (m.жизни >= m.нужно) {                          // 🏆 ПОБЕДА
+    world.remove(m.mesh); m.mesh = null;
+    save.stages.so5 = true; save.seen.morf = (save.seen.morf | 0) + 1; saveNow();
+    Snd.music(true);
+    bigMsg('👤 МОРФ ПОБЕЖДЁН!\nДОМ ПРИЗРАКОВЫХ ПРОЙДЕН!', 5, '#fde68a');
+    say('💙 Дом', 'Ты сделал это. Морф больше никого не поссорит. Спасибо тебе — от всего поместья.', 12);
+    task = '🏆 Морф побеждён! Игра пройдена!';
+    so.морф = null; updateHud();
+    return;
+  }
+  bigMsg('💥 ВЫТЯНУЛ! ' + m.жизни + '/' + m.нужно, 2, '#fde68a');
+  if (hasSpectre) морфИсчез(); else морфОблик(m.обликИдx + 1);
+}
+/* 💨 «иногда он может исчезать — придётся искать Спектром» (Марк 12.09) */
+function морфИсчез() {
+  const m = so.морф;
+  m.фаза = 'исчез'; m.найд = 0; m.прятки = 30;
+  const сx = m.x, сz = m.z;
+  m.x = clamp(SOX + rnd(-13, 13), SO_IN.x1+3, SO_IN.x2-3);
+  m.z = clamp(rnd(SO_IN.z1+4, SOZ-40), SO_IN.z1+3, SOZ-40);
+  // 🔦 дорожка следов от старого места к новому — по ней его и найдёшь
+  for (let i = 0; i <= 16; i++) {
+    const k = i/16;
+    поставитьСлед(сx + (m.x-сx)*k + rnd(-0.4,0.4), сz + (m.z-сz)*k + rnd(-0.4,0.4),
+                  Math.atan2(-(m.x-сx), -(m.z-сz)), 0xd6d8de);
+  }
+  m.mesh.traverse(o => { if (o.material) { o.material.transparent = true; o.material.opacity = 0.04;
+    if (o.material.emissive) o.material.emissiveIntensity = 0; } });
+  Snd.ghostMoan(); Snd.noise(0.5, 0.2, 320, 1);
+  bigMsg('💨 МОРФ ИСЧЕЗ!\n🔦 Включи СПЕКТР (G) и ищи его по следам', 4, '#86efac');
+  say('💙 Дом', 'Он растворился! Включай Спектр — на полу останутся следы. Посвети на него — и он вылезет.', 10);
+  task = '🔦 Найди Морфа Спектром (' + m.жизни + '/' + m.нужно + ')';
+  hint('Клавиша G или кнопка 🔦. Иди по стрелкам — они смотрят туда, куда он ушёл');
+  updateHud();
+}
+function морфНайден() {
+  const m = so.морф;
+  m.mesh.traverse(o => { if (o.material) { o.material.opacity = 0.6;
+    if (o.material.emissive) o.material.emissiveIntensity = 1.2; } });
+  Snd.tone(880, 0.3, 'triangle', 0.22, 200);
+  bigMsg('🔦 ВОТ ОН!', 1.6, '#86efac');
+  for (let k = 0; k < 24; k++) puff(m.x + rnd(-1.5,1.5), rnd(1,4), m.z + rnd(-1.5,1.5), 0x86efac);
+  морфОблик(m.обликИдx + 1);
 }
 function морфОблик(i) {
   const m = so.морф; if (!m) return;
+  m.фаза = 'облик'; m.тяга = 0; m.найд = 0;
   const пул = морфДоступные();
   const о = пул[i % пул.length];
   const инфо = GHOSTS[о.kind] || { color:0xd6d8de, scale:1.5 };
@@ -1855,31 +1987,25 @@ function морфОблик(i) {
   mesh.position.set(m.x, 1.2, m.z); world.add(mesh);
   m.mesh = mesh; m.цельМасштаб = цель; m.рост = 0;
   m.обликИдx = i; m.обликИмя = о.kind;
+  task = '👤 МОРФ ' + m.жизни + '/' + m.нужно + ' — сбей облик ВЫСТРЕЛОМ';
+  updateHud();
   bigMsg('🎭 МОРФ ПРЕВРАЩАЕТСЯ:\n' + о.имя, 2.4, '#d6d8de');
   Snd.ghostMoan(); Snd.tone(520, 0.5, 'sawtooth', 0.22, 120); Snd.noise(0.5, 0.16, 900, 0.8);
   for (let k = 0; k < 22; k++) puff(m.x + rnd(-1.6,1.6), rnd(0.6,4.4), m.z + rnd(-1.6,1.6), 0xd6d8de);
 }
 function hitMorph(sx, sz, sy) {                      // зовётся из updateShots
   const m = so && so.морф; if (!m || !m.mesh) return false;
+  if (m.фаза !== 'облик') {                          // вылезшего/невидимого ящиком не берут
+    if (m.фаза === 'вылез' && Math.hypot(m.x-sx, m.z-sz) < 3.2 && sy < 6) {
+      bigMsg('🌀 ЕГО НАДО ВСАСЫВАТЬ, а не бить!', 1.4, '#7dd3fc');
+      return true;
+    }
+    return false;
+  }
   if (Math.hypot(m.x-sx, m.z-sz) > 3.2 || sy > 6) return false;
-  m.попаданий++;
   Snd.tone(240, 0.24, 'square', 0.26, 90);
   for (let k = 0; k < 20; k++) puff(m.x, rnd(1,4), m.z, 0xffffff);
-  if (m.попаданий >= m.нужно) {                      // 🏆 ПОБЕДА
-    world.remove(m.mesh); m.mesh = null;
-    if (m.gh) { m.gh.alive = false; world.remove(m.gh.mesh); }
-    save.stages.so5 = true; save.seen.morf = (save.seen.morf | 0) + 1; saveNow();
-    Snd.music(true); Snd.catchWin();
-    bigMsg('👤 МОРФ ПОБЕЖДЁН!\nДОМ ПРИЗРАКОВЫХ ПРОЙДЕН!', 5, '#fde68a');
-    say('💙 Дом', 'Ты сделал это. Морф больше никого не поссорит. Спасибо тебе — от всего поместья.', 12);
-    task = '🏆 Морф побеждён! Игра пройдена!';
-    so.морф = null; updateHud();
-    return true;
-  }
-  bigMsg('💥 ПОПАЛ! ' + m.попаданий + '/' + m.нужно, 1.6, '#fde68a');
-  task = '👤 МОРФ: попаданий ' + m.попаданий + '/' + m.нужно;
-  морфОблик(m.обликИдx + 1);                         // от удара меняет облик
-  updateHud();
+  морфВылез();                                       // 1️⃣ облик разбит — вылезает настоящий
   return true;
 }
 function updateMorph(dt) {
@@ -1891,14 +2017,54 @@ function updateMorph(dt) {
     c.mesh.rotation.y += dt*14;
     c.mesh.position.y = 1.2 + c.t*1.6;
     if (c.t >= 1) { world.remove(c.mesh); m.схлоп = null; } }
-  if (m.цельМасштаб && m.mesh.scale.x < m.цельМасштаб - 0.01) {
+  // масштаб тянется и ВВЕРХ (вырос облик), и ВНИЗ (облик разбит — вылез мелкий Морф)
+  if (m.цельМасштаб && Math.abs(m.mesh.scale.x - m.цельМасштаб) > 0.01) {
     m.рост += dt;
-    const s = m.mesh.scale.x + (m.цельМасштаб - m.mesh.scale.x) * Math.min(1, dt*5);
-    m.mesh.scale.setScalar(s);
-    m.mesh.rotation.y += dt * 9 * (1 - s/m.цельМасштаб);   // крутится, пока растёт
+    const sc = m.mesh.scale.x + (m.цельМасштаб - m.mesh.scale.x) * Math.min(1, dt*6);
+    m.mesh.scale.setScalar(sc);
+    m.mesh.rotation.y += dt * 9 * Math.min(1, Math.abs(m.цельМасштаб - sc));
   }
-  // кружит вокруг игрока и подлетает
   const dx = player.x-m.x, dz = player.z-m.z, d = Math.hypot(dx, dz) || 1;
+
+  if (m.фаза === 'вылез') {                          // 2️⃣ вытягиваем лучом
+    m.окно -= dt;
+    if (!(mode === 'suck' && target && target.type === 'morph'))
+      m.тяга = Math.max(0, m.тяга - dt*0.2);         // отпустил — утекает
+    if (m.окно <= 0) {                               // не успел — снова спрятался в облик
+      bigMsg('🎭 УШЁЛ ОБРАТНО В ОБЛИК!\nсбивай выстрелом ещё раз', 2.6, '#fca5a5');
+      морфОблик(m.обликИдx + 1); return;
+    }
+    // вырывается: отлетает от игрока и мечется
+    m.x -= (dx/d)*2.1*dt + Math.cos(time*3.1)*1.4*dt;
+    m.z -= (dz/d)*2.1*dt + Math.sin(time*3.1)*1.4*dt;
+    m.x = clamp(m.x, SO_IN.x1+2, SO_IN.x2-2); m.z = clamp(m.z, SO_IN.z1+2, SOZ-39);
+    m.mesh.position.set(m.x, 1.4 + Math.sin(time*5)*0.3, m.z);
+    m.mesh.lookAt(player.x, 1.4, player.z);
+    if (m.окно < 4 && Math.random() < dt*3) bigMsg('⏳ Он вот-вот уйдёт!', 0.7, '#fca5a5');
+    return;
+  }
+
+  if (m.фаза === 'исчез') {                          // 3️⃣ ищем Спектром
+    m.прятки -= dt;
+    m.x += Math.cos(time*0.7)*1.1*dt; m.z += Math.sin(time*0.5)*1.1*dt;
+    m.x = clamp(m.x, SO_IN.x1+2, SO_IN.x2-2); m.z = clamp(m.z, SO_IN.z1+2, SOZ-39);
+    m.mesh.position.set(m.x, 1.4 + Math.sin(time*2)*0.2, m.z);
+    const вЛуче = spectreOn && inBeam(m.x, 1.4, m.z) > 0;
+    m.найд = вЛуче ? m.найд + dt : Math.max(0, m.найд - dt*0.7);
+    if (вЛуче) {                                     // проявляется под лучом Спектра
+      m.mesh.traverse(o => { if (o.material) o.material.opacity = 0.05 + m.найд*0.5; });
+      if (Math.random() < dt*6) puff(m.x, rnd(1,2.6), m.z, 0x86efac);
+    } else m.mesh.traverse(o => { if (o.material) o.material.opacity = 0.04; });
+    if (m.найд >= 0.9) { морфНайден(); return; }
+    if (m.прятки <= 0) {                             // не нашёл — вылезает сам, тупика не будет
+      bigMsg('👤 Он вылез сам!', 2, '#d6d8de');
+      m.mesh.traverse(o => { if (o.material) o.material.opacity = 0.6; });
+      морфОблик(m.обликИдx + 1);
+    }
+    return;
+  }
+
+  // 1️⃣ в облике босса: кружит вокруг игрока и подлетает
   const скор = d > 7 ? 2.6 : 1.2;
   m.x += (dx/d)*скор*dt + Math.cos(time*1.1)*0.8*dt;
   m.z += (dz/d)*скор*dt + Math.sin(time*1.1)*0.8*dt;
@@ -2529,7 +2695,12 @@ function buildSportGround() {
   const кольцо = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.06, 8, 22),
     new THREE.MeshStandardMaterial({ color:0xe2700f, emissive:0x7a2f00, emissiveIntensity:0.5 }));
   кольцо.rotation.x = Math.PI/2; кольцо.position.set(hx, hy, hz-0.7); world.add(кольцо);
-  spArena.hoop = { x:hx, y:hy, z:hz-0.7, r:0.6, mesh:кольцо };
+  // 🕸 СЕТКА под дужкой — чтобы было видно, что мяч ПРОВАЛИЛСЯ внутрь, а не пролетел мимо
+  const сеткаК = new THREE.Mesh(new THREE.CylinderGeometry(0.58, 0.30, 0.75, 12, 3, true),
+    new THREE.MeshStandardMaterial({ color:0xffffff, wireframe:true, transparent:true, opacity:0.75 }));
+  сеткаК.position.set(hx, hy-0.38, hz-0.7); world.add(сеткаК);
+  spArena.board = { x:hx, y:hy+0.9, z:hz, w:3, h:2 };
+  spArena.hoop = { x:hx, y:hy, z:hz-0.7, r:0.6, mesh:кольцо, сетка:сеткаК, свиш:0, дрожь:0 };
   // 🎳 БОУЛИНГ-дорожка у ближней стены — кегли строятся при входе в этап
   spArena.laneX = SPX-4; spArena.laneZ = SPZ-13; spArena.pinZ = SPZ-16;
   const дорожка = new THREE.Mesh(new THREE.BoxGeometry(4, 0.05, 8),
@@ -2600,22 +2771,80 @@ function расставитьКегли() {
     sp.pins.push({ x:spArena.laneX+dx, z:spArena.pinZ+dz, mesh:g, down:false });
   });
 }
+/* 🏀 НАСТОЯЩЕЕ КОЛЬЦО (жалоба Марка 12.09: «кидаю мяч — он проходит сквозь кольцо»).
+   Как было: гол засчитывался, едва мяч попадал в ТОЛСТЫЙ цилиндр Ø3 м рядом с кольцом,
+   причём ещё на подъёме — мяч пролетал В ПОЛУТОРА МЕТРАХ мимо дужки, игра кричала
+   «точно в кольцо», а снаряд тут же удаляли (мяч пропадал в воздухе). Теперь честно:
+   мяч отскакивает от щита и от дужки, а гол — только если он пересёк плоскость кольца
+   СВЕРХУ ВНИЗ внутри дужки. И после гола мяч не исчезает — проваливается сквозь сетку. */
+function баскетФизика(s, prevY) {
+  if (!sp || !s.prop || !s.prop.sportBall) return;
+  /* 🎳 БОУЛИНГ (просьба Марка 12.09: «чтобы мяч не проходил сквозь кегли»).
+     Шар КАТИТСЯ по дорожке (не падает сквозь пол) и сбивает кеглю, только если
+     реально в неё врезался; упавшая кегля валит соседей — как в жизни. */
+  if (sp.stage === 'sp3') {
+    if (s.y <= 0.46 && s.vy < 0) { s.y = 0.44; s.vy = 0; s.катится = true; }
+    for (const pn of sp.pins) {
+      if (pn.down) continue;
+      if (Math.hypot(pn.x-s.x, pn.z-s.z) < 0.66 && s.y < 1.25) {
+        уронитьКеглю(pn, s.vx, s.vz);
+        s.vx *= 0.86; s.vz *= 0.86;                        // шар чуть теряет ход
+      }
+    }
+    if (s.катится && s.z < spArena.pinZ - 1.6) s.стоп = true;   // укатился за кегли
+    return;
+  }
+  if (sp.stage !== 'sp2') return;
+  const h = spArena.hoop; if (!h) return;
+  const R = 0.42;                                          // радиус мяча
+  const b = spArena.board;                                 // 🟦 отскок от щита
+  if (b && s.vz > 0 && s.z + R >= b.z - 0.12 && s.z - R < b.z + 0.4 &&
+      Math.abs(s.x - b.x) < b.w/2 && Math.abs(s.y - b.y) < b.h/2) {
+    s.z = b.z - 0.12 - R; s.vz = -Math.abs(s.vz)*0.55; s.vx *= 0.8;
+    Snd.tone(170, 0.14, 'square', 0.18, 70);
+  }
+  const dxz = Math.hypot(s.x - h.x, s.z - h.z);
+  if (prevY > h.y && s.y <= h.y && s.vy < 0) {             // пересёк плоскость кольца вниз
+    if (dxz < h.r + 0.05) {                                // ✅ ПРОВАЛИЛСЯ В КОЛЬЦО
+      h.свиш = 1; s.vx *= 0.3; s.vz *= 0.3;                // сетка гасит мяч
+      h.последний = { dxz:+dxz.toFixed(2), vy:+s.vy.toFixed(2) };   // для автотеста
+      if (!s.гол) { s.гол = true; спортГол('🏀 ЧИСТОЕ ПОПАДАНИЕ!'); }
+      return;
+    }
+    if (dxz < h.r + 0.55) {                                // 🔔 задел дужку — отскок
+      const nx = (s.x-h.x)/(dxz||1), nz = (s.z-h.z)/(dxz||1);
+      s.x = h.x + nx*(h.r+0.55); s.z = h.z + nz*(h.r+0.55);
+      s.vx = nx*3.6 + s.vx*0.2; s.vz = nz*3.6 + s.vz*0.2;
+      s.vy = Math.abs(s.vy)*0.45 + 1.8; h.дрожь = 1;
+      Snd.tone(420, 0.18, 'square', 0.2, 110);
+      bigMsg('🔔 ДУЖКА!', 0.9, '#fbbf24');
+    }
+  }
+}
+function уронитьКеглю(pn, vx, vz) {
+  if (pn.down || !sp || !sp.pins.includes(pn)) return;   // кегля из прошлой расстановки — мимо
+  pn.down = true;
+  const d = Math.hypot(vx, vz) || 1, nx = vx/d, nz = vz/d;
+  pn.mesh.rotation.set(nz*1.35, 0, -nx*1.35);              // валится КУДА ЛЕТЕЛ шар
+  pn.mesh.position.set(pn.x + nx*0.3, 0.2, pn.z + nz*0.3);
+  Snd.tone(200, 0.2, 'square', 0.2, 90); Snd.noise(0.18, 0.12, 1400, 1);
+  // 🪃 соседние кегли валятся следом
+  sp.pins.forEach(о => { if (!о.down && Math.hypot(о.x-pn.x, о.z-pn.z) < 1.15)
+    setTimeout(() => { if (state === 'play' && !о.down) уронитьКеглю(о, vx, vz); }, 90); });
+  if (sp.pins.every(о => о.down) && !sp.done) {
+    спортГол('🎳 СТРАЙК!');
+    setTimeout(() => { if (state==='play' && sp.stage==='sp3' && !sp.done) расставитьКегли(); }, 1100);
+  }
+}
 // проверка попадания летящего мяча по спорт-цели (зовётся из updateShots)
 function sportOnShot(s) {
   if (!sp || sp.done || !s.prop || !s.prop.sportBall) return false;
   if (sp.stage === 'sp1') {                           // гол: мяч пересёк линию ворот
     if (s.x > spArena.goalX-0.5 && Math.abs(s.z-spArena.goalZ) < 3.1 && s.y < 4) { спортГол('⚽ ГО-О-ОЛ!'); return true; }
-  } else if (sp.stage === 'sp2') {                    // кольцо: мяч рядом с кольцом и идёт вниз
-    // ⚠️ было слишком строго (r 0.6, ±0.55) — попасть почти невозможно (жалоба Марка 06.09)
-    if (Math.hypot(s.x-spArena.hoop.x, s.z-spArena.hoop.z) < 1.5 &&
-        Math.abs(s.y-spArena.hoop.y) < 1.3 && s.vy < 1.5) { спортГол('🏀 ТОЧНО В КОЛЬЦО!'); return true; }
-  } else if (sp.stage === 'sp3') {                    // кегли: сбиваем те, что рядом
-    let сбил = 0;
-    sp.pins.forEach(pn => { if (!pn.down && Math.hypot(pn.x-s.x, pn.z-s.z) < 1.8 && s.y < 2.4) {
-      pn.down = true; pn.mesh.rotation.z = 1.4; pn.mesh.position.y = 0.2; сбил++; } });
-    if (сбил) { Snd.tone(200, 0.2, 'square', 0.2, 90);
-      if (sp.pins.every(pn => pn.down)) { спортГол('🎳 СТРАЙК!'); setTimeout(() => { if (state==='play' && sp.stage==='sp3' && !sp.done) расставитьКегли(); }, 900); }
-      return сбил >= 1 && s.y < 1.0; }        // низкий шар «останавливается», высокий летит дальше
+  } else if (sp.stage === 'sp2') {                    // 🏀 кольцо считает баскетФизика(): гол —
+    return false;                                     //    только за честный проход сквозь дужку
+  } else if (sp.stage === 'sp3') {                    // 🎳 кегли считает баскетФизика():
+    return false;                                     //    сбиваются только настоящим ударом
   }
   return false;
 }
@@ -2640,7 +2869,15 @@ function спортЭтапГотов() {
 }
 function updateSport(dt) {
   if (!sp || !player) return;
-  if (spArena.hoop && spArena.hoop.mesh) spArena.hoop.mesh.rotation.z += dt * 0.5;
+  // 🕸 сетка вздрагивает после попадания, дужка — после звона (вместо бессмысленного верчения)
+  const h = spArena.hoop;
+  if (h && h.сетка) {
+    h.свиш = Math.max(0, h.свиш - dt*2.2); h.дрожь = Math.max(0, h.дрожь - dt*3);
+    h.сетка.scale.set(1 + h.свиш*0.22, 1 + h.свиш*0.5, 1 + h.свиш*0.22);
+    h.сетка.position.y = h.y - 0.38 - h.свиш*0.18;
+    if (h.mesh) { h.mesh.position.x = h.x + Math.sin(time*40)*h.дрожь*0.05;
+                  h.mesh.rotation.z = Math.sin(time*36)*h.дрожь*0.12; }
+  }
   // босс Спортсмен побеждён?
   if (sp.stage === 'sp4' && sp.boss && !sp.done && !sp.boss.alive) {
     sp.done = true; save.stages.sp4 = true; saveNow();
@@ -3473,6 +3710,7 @@ function startGame(stageId) {
   breath = 1; player.dive = 0; deepBefore = false; diveHeld = false;
   scene.fog.density = 0.013; scene.background.setHex(0x0c1526);
   hasSpectre = false; spectreOn = false; if (spectreLight) spectreLight.intensity = 0;
+  очиститьСледы();
   vanished = []; mouseHunt = 0; laundryOpen = false;
   if (ручка) { world.remove(ручка.mesh); ручка = null; }
   if (ворота) { ворота.открыты = false; ворота.mesh.visible = false; }
@@ -3493,6 +3731,8 @@ function startGame(stageId) {
     if (so.морф && so.морф.mesh) world.remove(so.морф.mesh);
     so.морф = null;
     if (so.трофей) { so.трофей.сбежал = false; so.трофей.увиден = false; so.трофей.отворотT = 0;
+      so.трофей.фаза = 'ждём'; so.трофей.t = 0; so.трофей.нытьё = 0;
+      so.трофей.шум.mesh.visible = false; so.трофей.шум.маяк.intensity = 0;
       so.трофей.морф.visible = true; so.трофей.свет.intensity = 7;
       so.трофей.стекло.material.color.setHex(0xbfe8ff); } }
   растения.forEach(р => { р.цель = 0.28; р.mesh.scale.setScalar(0.28); р.цветок.visible = false; });
@@ -3620,7 +3860,7 @@ function skipTo(id) {
     границы = { x1:SOX-33, x2:SOX+33, z1:SO_IN.z1-1, z2:SOZ+28 };
     player.dive = 0; };
   if (id === 'so1') {
-    пылесос();                                     // пылесос есть, а КЛЮЧ — у мыши
+    пылесос(); дайСпектр();                        // пылесос и Спектр есть, а КЛЮЧ — у мыши
     hasKey = false;
     границы = { x1:SOX-33, x2:SOX+33, z1:SOZ-28, z2:SOZ+28 };
     player.x = SOX; player.z = SOZ+16; player.yaw = 0; player.dive = 0;
@@ -4113,9 +4353,28 @@ function shootHeld() {
     const dx = hx - m.position.x, dz = hz - m.position.z, d = Math.hypot(dx, dz);
     const кНему = (dir.x*dx + dir.z*dz) / (d || 1);          // насколько смотрим на кольцо
     if (d > 1.5 && кНему > 0.55) {
-      const t = clamp(d/12, 0.55, 1.4);                       // время полёта
-      vx = dx/t; vz = dz/t;
-      vy = ((hy - m.position.y) + 0.5*17*t*t) / t;            // баллистика с g=17
+      // чем точнее смотришь — тем ближе к центру дужки; косой взгляд = звон дужки
+      const промах = clamp((1 - кНему)/0.45, 0, 1) * 0.95 * (Math.random() < 0.5 ? -1 : 1);
+      const цx = hx + (-dz/d)*промах, цz = hz + (dx/d)*промах;
+      const t = clamp(d/9, 0.85, 1.6);                        // время полёта: высокая дуга,
+      vx = (цx - m.position.x)/t; vz = (цz - m.position.z)/t; // чтобы мяч падал В кольцо СВЕРХУ
+      vy = ((hy + 0.05 - m.position.y) + 0.5*17*t*t) / t;     // баллистика с g=17
+    }
+  }
+  // 🎳 БОУЛИНГ: катим шар по дорожке в центр ОСТАВШИХСЯ кеглей
+  if (мяч && этап === 'sp3' && sp.pins.length) {
+    const цели = sp.pins.filter(pn => !pn.down);
+    if (цели.length) {
+      const cx = цели.reduce((a,pn)=>a+pn.x,0)/цели.length, cz = цели.reduce((a,pn)=>a+pn.z,0)/цели.length;
+      const dx = cx - m.position.x, dz = cz - m.position.z, d = Math.hypot(dx, dz);
+      const кНим = (dir.x*dx + dir.z*dz) / (d || 1);
+      if (d > 1.5 && кНим > 0.55) {
+        const промах = clamp((1-кНим)/0.45, 0, 1) * 1.2 * (Math.random() < 0.5 ? -1 : 1);
+        const цx = cx + (-dz/d)*промах, цz = cz + (dx/d)*промах;
+        const t = clamp(d/16, 0.4, 1.0);
+        vx = (цx - m.position.x)/t; vz = (цz - m.position.z)/t;
+        vy = (0.44 - m.position.y)/(t*0.4);              // быстро ложится на дорожку и катится
+      }
     }
   }
   shots.push({ mesh:m, prop:heldObj, x:m.position.x, y:m.position.y, z:m.position.z,
@@ -4252,6 +4511,10 @@ function toggleSpectre() {
   spectreOn = !spectreOn;
   Snd.spectre();
   bigMsg(spectreOn ? '🔦 СПЕКТР ВКЛЮЧЁН' : '🔦 Спектр выключен', 1.2, '#86efac');
+  if (spectreOn && !следыПодсказка) {                   // 🔦 рассказываем про следы один раз
+    следыПодсказка = true;
+    hint('🔦 Зелёные стрелки на полу — СЛЕДЫ. Стрелка смотрит туда, куда убежал призрак');
+  }
 }
 function updateSpectre(dt) {
   const цель = spectreOn ? 16 : 0;
@@ -4261,6 +4524,65 @@ function updateSpectre(dt) {
   spectreLight.position.set(player.x, player.y, player.z);
   spectreLight.target.position.set(player.x + f.x*14, player.y + f.y*14, player.z + f.z*14);
   spectreLight.target.updateMatrixWorld();
+}
+
+/* ── 🔦 СЛЕДЫ ПРИЗРАКОВ (просьба Марка 12.09) ───────────────────────────
+   Раньше Спектр умел одно: проявлять невидимок и пропажи, и только в особняке.
+   Теперь он ещё и СЛЕДОПЫТ: на полу светятся стрелки — куда убежал призрак или мышь,
+   если ты их потерял. Стрелка смотрит В ТУ СТОРОНУ, куда цель двигалась; чем свежее
+   след, тем ярче. Без Спектра следов не видно вообще. */
+const СЛЕД_МАКС = 200, СЛЕД_ЖИЗНЬ = 12;
+let следы = [], следПул = [];
+let следCd = 0, следыПодсказка = false;
+const следГео = new THREE.CircleGeometry(0.17, 3, Math.PI/2);   // треугольник остриём «вперёд»
+function поставитьСлед(x, z, yaw, color) {
+  let с = следы.length >= СЛЕД_МАКС ? следы.shift() : следПул.pop();
+  if (!с) {
+    const m = new THREE.Mesh(следГео, new THREE.MeshBasicMaterial({ color, transparent:true,
+      opacity:0, depthWrite:false, side:THREE.DoubleSide }));
+    m.rotation.order = 'YXZ'; m.rotation.x = -Math.PI/2; world.add(m);
+    с = { mesh:m };
+  }
+  с.mesh.material.color.setHex(color);
+  с.mesh.position.set(x, 0.07, z);
+  с.mesh.rotation.y = yaw;
+  с.mesh.visible = false; с.t = 0;
+  следы.push(с);
+}
+// след ставится по СМЕЩЕНИЮ между двумя отметками — так видно направление бега
+function уронитьСлед(o, x, z, color) {
+  const px = o._слX, pz = o._слZ;
+  o._слX = x; o._слZ = z;
+  if (px === undefined) return;
+  const vx = x-px, vz = z-pz;
+  if (Math.hypot(vx, vz) < 0.13) return;               // стоит на месте — следов не оставляет
+  if (Math.hypot(x-player.x, z-player.z) > 55) return; // за краем света не копим
+  поставитьСлед(x, z, Math.atan2(-vx, -vz), color);
+}
+function очиститьСледы() {
+  следы.forEach(с => { с.mesh.visible = false; следПул.push(с); });
+  следы = []; следCd = 0;
+}
+function updateСледы(dt) {
+  if (!player) return;
+  следCd -= dt;
+  if (hasSpectre && следCd <= 0) {
+    следCd = 0.4;
+    for (const g of ghosts) if (g.alive && !g.inProp) уронитьСлед(g, g.x, g.z, g.info.color);
+    for (const m of mice) if (m.alive) уронитьСлед(m, m.x, m.z, 0x7dd3fc);
+    const мф = so && so.морф;
+    if (мф && мф.mesh) уронитьСлед(мф, мф.x, мф.z, 0xd6d8de);
+  }
+  for (let i = следы.length-1; i >= 0; i--) {
+    const с = следы[i]; с.t += dt;
+    if (с.t >= СЛЕД_ЖИЗНЬ) { с.mesh.visible = false; следы.splice(i,1); следПул.push(с); continue; }
+    if (!spectreOn) { с.mesh.visible = false; continue; }
+    const k = 1 - с.t/СЛЕД_ЖИЗНЬ;                       // свежесть 1 → 0
+    const вЛуче = inBeam(с.mesh.position.x, 0.3, с.mesh.position.z) > 0;
+    с.mesh.visible = true;
+    с.mesh.material.opacity = (вЛуче ? 0.95 : 0.3) * (0.2 + k*0.8);
+    с.mesh.scale.setScalar(0.65 + k*0.55);
+  }
 }
 
 /* ── направление взгляда ───────────────────────────────────────────── */
@@ -4496,8 +4818,14 @@ function updateBeam(dt) {
                         document.body.classList.remove('aim'); Snd.motor(null); return; }
   if (tool === 'blower' && mode === 'suck') { mode = null; bigMsg('у воздуходувки нет всасывания', 1, '#cbd5e1'); return; }
 
-  // 1) что под лучом: сначала призраки СНАРУЖИ предметов
+  // 0) 👤 вылезший МОРФ важнее всех — его-то и надо тянуть (схема Марка 12.09)
   let best = null, bestW = 0;
+  const мф = so && so.морф;
+  if (мф && мф.mesh && мф.фаза === 'вылез') {
+    const w = inBeam(мф.x, 1.4, мф.z);
+    if (w > bestW) { bestW = w; best = { type:'morph', obj:мф }; }
+  }
+  // 1) что под лучом: сначала призраки СНАРУЖИ предметов
   for (const gh of ghosts) {
     if (!gh.alive || gh.inProp) continue;
     if (gh.info.invisible && !spectreOn) continue;   // невидимку берёт только Спектр
@@ -4575,7 +4903,24 @@ function updateBeam(dt) {
 
   if (!best) { $('ghostBar').style.display = 'none'; return; }
 
-  if (best.type === 'ghost') {
+  if (best.type === 'morph') {                        // 🌀 ТЯНЕМ МОРФА
+    const m = best.obj;
+    if (mode === 'suck') {
+      m.тяга = clamp(m.тяга + dt * bestW * 0.5 * (suckPower()/CFG.suckDps), 0, 1);
+      const dx = m.x-player.x, dz = m.z-player.z, dd = Math.hypot(dx, dz) || 1;
+      m.x -= dx/dd * 2.4 * dt; m.z -= dz/dd * 2.4 * dt;   // подтягивается к трубе
+      if (Math.random() < 0.6) puff(m.x, 1.4 + rnd(-0.5,0.5), m.z, 0xffffff);
+      Snd.hum(120 + m.тяга*240);
+      if (m.тяга >= 1) { морфВытянут(); return; }
+    } else {                                             // выдувом только отшвырнёшь
+      const dx = m.x-player.x, dz = m.z-player.z, dd = Math.hypot(dx, dz) || 1;
+      m.x += dx/dd * 5 * dt; m.z += dz/dd * 5 * dt;
+    }
+    $('ghostBar').style.display = 'block';
+    $('ghostName').textContent = '👤 МОРФ ' + m.жизни + '/' + m.нужно;
+    $('ghostFill').style.width = clamp(m.тяга*100, 0, 100) + '%';
+  }
+  else if (best.type === 'ghost') {
     const gh = best.obj;
     if (mode === 'suck') {
       gh.hp -= suckPower() * dt * bestW;
@@ -4869,7 +5214,9 @@ function updateShots(dt) {
   for (let i = shots.length-1; i >= 0; i--) {
     const s = shots[i];
     s.t += dt; s.vy -= 17*dt;
+    const prevY = s.y;
     s.x += s.vx*dt; s.y += s.vy*dt; s.z += s.vz*dt;
+    баскетФизика(s, prevY);                            // 🏀 щит, дужка и честный проход в кольцо
     s.mesh.position.set(s.x, s.y, s.z);
     s.mesh.rotation.x += dt*7; s.mesh.rotation.z += dt*5;
     let hit = false;
@@ -4890,7 +5237,7 @@ function updateShots(dt) {
       if (gh.hp <= 0) catchGhost(gh);
       break;
     }
-    if (hit || s.y < 0.2 || s.t > 4) {
+    if (hit || s.стоп || s.y < 0.2 || s.t > 4) {
       shots.splice(i, 1);
       const p = s.prop; p.inNozzle = false;
       // 🏀 спорт-мяч возвращается на своё поле, а не в дом (общий clamp его сносил)
@@ -4933,7 +5280,7 @@ function loop(now) {
     updateViewModel(dt, Math.hypot(stickV.x, stickV.y) ||
       ((keys.KeyW||keys.KeyS||keys.KeyA||keys.KeyD) ? 1 : 0)); updateGhosts(dt); updateMice(dt);
     updateProps(dt); updateShots(dt); updatePuffs(dt); updateCrystals(dt); updateRain(dt); updatePool(dt); updateAirFlow(dt);
-    updateKeyItem(dt); checkPoolDone(); updateSpectre(dt); updateLibrary(dt);
+    updateKeyItem(dt); checkPoolDone(); updateSpectre(dt); updateСледы(dt); updateLibrary(dt);
     updateVanished(dt); updateMouseHunt(dt); updateChute(dt); updateSpider(dt); updateGreenhouse(dt); updateGates(dt); updateCellarExit(dt); updateZevaka(dt); updateOrx(dt); updateSport(dt); updateSportDoor(dt); updateSo(dt); updatePoolExtras(dt);
     if (msgT > 0) { msgT -= dt; if (msgT <= 0) $('bigMsg').style.opacity = 0; }
     if (subT > 0) { subT -= dt; if (subT <= 0) $('subs').classList.add('hidden'); }
@@ -5122,7 +5469,8 @@ window.__dbg = {
     трофейУвиден: so.трофей ? so.трофей.увиден : null, трофейСбежал: so.трофей ? so.трофей.сбежал : null,
     облаваПр: so.облава ? so.облава.filter(g => g.alive).length : null,
     облаваМш: mice.filter(m => m.alive && m.x > SO_IN.x1 && m.x < SO_IN.x2 && m.z > SO_IN.z1 && m.z < SO_IN.z2).length,
-    морф: so.морф ? { попаданий:so.морф.попаданий, нужно:so.морф.нужно, облик:so.морф.обликИмя } : null,
+    морф: so.морф ? { попаданий:so.морф.попаданий, жизни:so.морф.жизни, нужно:so.морф.нужно,
+                      фаза:so.морф.фаза, тяга:+so.морф.тяга.toFixed(2), облик:so.морф.обликИмя } : null,
     этапы: { so2:!!save.stages.so2, so3:!!save.stages.so3, so4:!!save.stages.so4, so5:!!save.stages.so5 } } : null; },
   toRoomGhost(){ const g = ((so.комнаты||[]).concat(so.облава||[])).find(x => x.alive && !x.inProp);
     if (!g) return null; player.x = g.x + 2.4; player.z = g.z + 2.4; this.look(g.x, g.z, g.y); return true; },
@@ -5171,7 +5519,7 @@ window.__dbg = {
     const p = sportBalls[0]; if (!p || !sp) return null;
     let x, y, z, vy = 0;
     if (sp.stage === 'sp1') { x = spArena.goalX + 0.1; y = 1.5; z = spArena.goalZ; }
-    else if (sp.stage === 'sp2') { x = spArena.hoop.x; y = spArena.hoop.y - 0.05; z = spArena.hoop.z; vy = -2; }
+    else if (sp.stage === 'sp2') { x = spArena.hoop.x; y = spArena.hoop.y + 0.9; z = spArena.hoop.z; vy = -6; }
     else if (sp.stage === 'sp3') { const pin = sp.pins.find(pn => !pn.down) || sp.pins[0]; x = pin.x; y = 0.5; z = pin.z; }
     else if (sp.stage === 'sp4') { const b = sp.boss; if (!b) return null; x = b.x; y = b.y; z = b.z; }
     if (held.includes(p)) held = held.filter(h => h !== p);
@@ -5179,6 +5527,26 @@ window.__dbg = {
     shots.push({ mesh:p.mesh, prop:p, x, y, z, vx:0, vy, vz:0, t:0 });
     return sp.stage;
   },
+  hoopInfo(){ return spArena.hoop ? { x:spArena.hoop.x, y:spArena.hoop.y, z:spArena.hoop.z,
+    r:spArena.hoop.r, последний:spArena.hoop.последний || null } : null; },
+  get следы(){ return { всего:следы.length, видно:следы.filter(с => с.mesh.visible).length }; },
+  следДиаг(){ return { спектр:hasSpectre, cd:+следCd.toFixed(2),
+    призраков:ghosts.filter(g=>g.alive && !g.inProp).length, мышей:mice.filter(m=>m.alive).length,
+    примерG: (ghosts.find(g=>g.alive)||{})._слX, примерM: (mice.find(m=>m.alive)||{})._слX }; },
+  toMorph(){ const m = so && so.морф; if (!m || !m.mesh) return null;
+    player.x = clamp(m.x + 3.2, SO_IN.x1+2, SO_IN.x2-2); player.z = clamp(m.z + 3.2, SO_IN.z1+2, SOZ-40);
+    this.look(m.x, m.z, 1.4); return m.фаза; },
+  toTrophyNoise(){ const t = so && so.трофей; if (!t) return null;
+    player.x = t.шум.x; player.z = t.шум.z + 2; this.look(t.шум.x, t.шум.z, 0.4); return t.фаза; },
+  toTrophyCase(){ const t = so && so.трофей; if (!t) return null;
+    player.x = t.x; player.z = t.z + 4; this.look(t.x, t.z, 2); return t.фаза; },
+  get trophy(){ const t = so && so.трофей;
+    return t ? { фаза:t.фаза, t:+t.t.toFixed(1), увиден:t.увиден, сбежал:t.сбежал,
+                 d:+Math.hypot(t.x-player.x, t.z-player.z).toFixed(1), этап:!!save.stages.so3 } : null; },
+  shotTrack(){ const s2 = shots[0]; if (!s2 || !spArena.hoop) return null;
+    return { x:+s2.x.toFixed(2), y:+s2.y.toFixed(2), z:+s2.z.toFixed(2), vy:+s2.vy.toFixed(2),
+             d:+Math.hypot(s2.x-spArena.hoop.x, s2.z-spArena.hoop.z).toFixed(2),
+             dy:+(s2.y-spArena.hoop.y).toFixed(2) }; },
 };
 </script>
 
