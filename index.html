@@ -144,7 +144,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#1b2138">
-  <script>window.__APP_VER = "9d36172d4b";</script>
+  <script>window.__APP_VER = "a327fdb23d";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -2862,6 +2862,11 @@ function спортГол(txt) {
   if (sp.goals >= sp.need) спортЭтапГотов();
   updateHud();
 }
+/* ⚠️ БАГ, из-за которого «мяч проходит сквозь кольцо» (жалоба Марка 12.09).
+   `setupSportStage` звался ТОЛЬКО при входе в спортзал и из выбора этапа. Дойдя до конца
+   футбола, игрок оставался в `sp.stage='sp1'` c `sp.done=true`: кольцо стояло на поле,
+   но физика кольца (она включается только на 'sp2') не работала, и мяч честно пролетал
+   насквозь. Теперь этап сам переключается на следующий через 3 секунды. */
 function спортЭтапГотов() {
   sp.done = true;
   save.stages[sp.stage] = true; saveNow();
@@ -2870,9 +2875,26 @@ function спортЭтапГотов() {
   say('💙 Дом', next, 5);
   task = next;
   updateHud();
+  const дальше = { sp1:'sp2', sp2:'sp3', sp3:'sp4' }[sp.stage];
+  if (дальше) setTimeout(() => {
+    if (state !== 'play' || !sp || !sp.done) return;
+    setupSportStage(дальше);
+    bigMsg({ sp2:'🏀 БАСКЕТБОЛ!', sp3:'🎳 БОУЛИНГ!', sp4:'🏆 БОСС СПОРТСМЕН!' }[дальше], 2.6, '#fde047');
+  }, 3200);
+  if (sp.stage === 'sp4') { спортВыход = true;
+    say('💙 Дом', 'Спортучасток твой! Иди к западному краю площадки — там выход обратно в оранжерею.', 9); }
 }
+let спортВыход = false;
 function updateSport(dt) {
   if (!sp || !player) return;
+  // 🚪 пройден босс → западный край площадки уводит обратно в оранжерею
+  if ((спортВыход || save.stages.sp4) && player.x < SPX-23 && Math.abs(player.z-SPZ) < 6) {
+    спортВыход = false;
+    границы = ГРАНИЦЫ_ДОМА;
+    player.x = 21; player.z = -70; player.yaw = 0; player.dive = 0;
+    bigMsg('🌺 ВЕРНУЛСЯ В ОРАНЖЕРЕЮ', 2.4, '#a3e635');
+    updateHud(); return;
+  }
   // 🕸 сетка вздрагивает после попадания, дужка — после звона (вместо бессмысленного верчения)
   const h = spArena.hoop;
   if (h && h.сетка) {
