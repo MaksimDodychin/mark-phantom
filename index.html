@@ -144,7 +144,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#1b2138">
-  <script>window.__APP_VER = "ee1f029d5f";</script>
+  <script>window.__APP_VER = "9d36172d4b";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -1892,8 +1892,12 @@ function startSo5() {
               фаза:'облик', тяга:0, окно:0, найд:0, прятки:0 };
   морфОблик(0);
   // 📦 ящики-снаряды по залу — ими и разбивать облик
+  // ⚠️ без уборки бочки копились с каждым перезаходом на этап
+  props.filter(p2 => p2.морфБочка).forEach(p2 => { world.remove(p2.mesh);
+    const i = props.indexOf(p2); if (i >= 0) props.splice(i, 1);
+    held = held.filter(h => h !== p2); });
   for (const [x,z] of [[SOX-9,zc-3],[SOX+9,zc-3],[SOX-9,zc+3],[SOX+9,zc+3],[SOX-13,zc],[SOX+13,zc]])
-    addProp('бочка', x, z, 1.2, 1.6, 1.2, true);
+    addProp('бочка', x, z, 1.2, 1.6, 1.2, true).морфБочка = true;
   Snd.music(true, 'boss');
   bigMsg('👤 МОРФ!\nв облике босса луч его не берёт — СТРЕЛЯЙ ящиком', 4.5, '#d6d8de');
   say('💙 Дом', 'Сбей с него облик выстрелом — а как вылезет настоящий, ДЕРЖИ ВСАСЫВАНИЕ ' +
