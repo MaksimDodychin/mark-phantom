@@ -144,7 +144,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#1b2138">
-  <script>window.__APP_VER = "122b6c26c6";</script>
+  <script>window.__APP_VER = "95fca84f23";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -557,6 +557,7 @@ function buildViewModel() {
   bag.position.set(-0.52, -0.44, -0.86);
   g.add(bag); vmBag = bag;
   phVisual(()=>phViewDetails(g, рука, bag, brush, хром, синий, резина));
+  phVisual(()=>ph2ViewVacuum(g, рука, bag, brush, tube, золотой));
 
   g.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
   g.visible = false;
@@ -754,6 +755,69 @@ function phViewDetails(g,hand,bag,brush,chrome,blue,rubber){const collar=new THR
 function phSpectral(mat){mat.onBeforeCompile=shader=>{shader.uniforms.phantomRim={value:mat.color};shader.fragmentShader='uniform vec3 phantomRim;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>','float phantomEdge=pow(1.0-abs(dot(normalize(vViewPosition),normal)),2.3);outgoingLight+=phantomRim*phantomEdge*.5;\n#include <opaque_fragment>');};mat.customProgramCacheKey=()=> 'phantom-rim-1';return mat;}
 function phGhostDetails(g,orb){const seen=new Set();g.traverse(o=>{if(o.isMesh&&o.material.isMeshStandardMaterial&&o.material.transparent&&!seen.has(o.material)){seen.add(o.material);phSpectral(o.material);}});const mat=new THREE.MeshBasicMaterial({color:0xe6faff,transparent:true,opacity:.65,depthWrite:false});for(const s of [-1,1]){const p=new THREE.Mesh(new THREE.SphereGeometry(orb?.025:.033,8,6),mat);p.position.set(s*(orb?.15:.2)-.026,orb?.53:.825,orb?.444:.49);g.add(p);}return g;}
 function phCellarArt(){if(phArt.cellarGroup?.parent)return;const g=new THREE.Group();g.name='Cellar architectural artwork';phArt.cellarGroup=g;for(let i=0;i<13;i++){const a=i*Math.PI*2/13,x=-200+Math.cos(a)*21,z=-200+Math.sin(a)*21;const m=phBox(g,.7,12,.7,x,6,z,phTrim);m.rotation.y=-a;const c=phBox(g,1.2,.28,1.2,x,11.8,z,phBronze);c.rotation.y=-a;}phBatch(g);world.add(g);}
+
+
+/* Second visual pass: one recognizable canister vacuum in the world and in hand.
+   All allocations run through phVisual; gameplay random state and tool pivots are unchanged. */
+const ph2Art={models:new Map(),found:null,env:null,materials:null,cylinders:new Map(),hoses:new Map()};
+function ph2Materials(gold){if(!ph2Art.materials)ph2Art.materials=new Map();if(ph2Art.materials.has(gold))return ph2Art.materials.get(gold);const m={
+ shell:new THREE.MeshPhysicalMaterial({color:gold?0xffcf3a:0x226cc7,metalness:gold?.82:.18,roughness:.25,clearcoat:.85,clearcoatRoughness:.16,envMapIntensity:.55}),
+ inset:new THREE.MeshPhysicalMaterial({color:gold?0xc79932:0x174e87,metalness:.28,roughness:.36,clearcoat:.45,envMapIntensity:.45}),
+ steel:new THREE.MeshStandardMaterial({color:gold?0xffd700:0xb6c7d5,metalness:.88,roughness:.23,envMapIntensity:.7}),
+ rubber:new THREE.MeshStandardMaterial({color:0x17212b,roughness:.84,metalness:.02}),
+ dark:new THREE.MeshStandardMaterial({color:0x233140,roughness:.52,metalness:.15}),
+ red:new THREE.MeshStandardMaterial({color:0xae3634,roughness:.34,metalness:.07}),
+ glass:new THREE.MeshPhysicalMaterial({color:0x8cbace,roughness:.18,metalness:.24,clearcoat:.8,envMapIntensity:.6}),
+ label:phSurface(phLabel('ВИХРЬ','3000  ·  ФАНТОМОВЫ'),1,1,.48)
+};ph2Art.materials.set(gold,m);return m;}
+function ph2Box(g,w,h,d,x,y,z,m){const o=new THREE.Mesh(phRounded(w,h,d),m);o.position.set(x,y,z);g.add(o);return o;}
+function ph2CylinderGeometry(r1,r2,h,segments){const key=[r1,r2,h,segments].join('/');if(!ph2Art.cylinders.has(key))ph2Art.cylinders.set(key,new THREE.CylinderGeometry(r1,r2,h,segments));return ph2Art.cylinders.get(key);}
+function ph2Cylinder(g,r1,r2,h,x,y,z,m,axis='y',segments=24){const o=new THREE.Mesh(ph2CylinderGeometry(r1,r2,h,segments),m);o.position.set(x,y,z);if(axis==='x')o.rotation.z=Math.PI/2;if(axis==='z')o.rotation.x=Math.PI/2;g.add(o);return o;}
+function ph2Hose(points,radius,mat,segments=88,ribs=32){const key=JSON.stringify([points,radius,segments,ribs]);if(ph2Art.hoses.has(key))return new THREE.Mesh(ph2Art.hoses.get(key),mat);const curve=new THREE.CatmullRomCurve3(points.map(v=>new THREE.Vector3(...v))),geo=new THREE.TubeGeometry(curve,segments,radius,10,false),p=geo.attributes.position,v=new THREE.Vector3();for(let i=0;i<=segments;i++){const c=curve.getPointAt(i/segments),k=1+.16*Math.cos(i/segments*Math.PI*2*ribs);for(let j=0;j<=10;j++){const n=i*11+j;v.fromBufferAttribute(p,n).sub(c).multiplyScalar(k).add(c);p.setXYZ(n,v.x,v.y,v.z);}}geo.computeVertexNormals();ph2Art.hoses.set(key,geo);return new THREE.Mesh(geo,mat);}
+function ph2Canister(gold=false){if(ph2Art.models.has(gold))return ph2Art.models.get(gold).clone(true);const m=ph2Materials(gold),g=new THREE.Group();g.name='ВИХРЬ-3000 — корпус';
+ ph2Box(g,.73,.16,1.03,0,.20,0,m.rubber);
+ const body=new THREE.Mesh(new THREE.SphereGeometry(1,32,20),m.shell);body.scale.set(.375,.29,.535);body.position.set(0,.38,0);g.add(body);
+ ph2Box(g,.68,.20,.63,0,.45,-.14,m.shell);
+ // Lid, bumper seam and filter grille define a practical household canister.
+ ph2Box(g,.63,.035,.72,0,.565,-.05,m.inset);
+ ph2Box(g,.67,.027,.87,0,.415,-.01,m.dark);
+ const lid=new THREE.Mesh(new THREE.SphereGeometry(1,24,16),m.shell);lid.scale.set(.328,.135,.385);lid.position.set(0,.495,-.04);g.add(lid);
+ for(const sx of [-1,1]){ph2Cylinder(g,.225,.225,.095,sx*.38,.235,.245,m.rubber,'x',28);ph2Cylinder(g,.151,.151,.103,sx*.386,.235,.245,m.inset,'x',24);ph2Cylinder(g,.06,.06,.112,sx*.389,.235,.245,m.steel,'x',16);for(let i=0;i<6;i++){const a=i*Math.PI/3,b=ph2Box(g,.112,.018,.135,sx*.388,.235+Math.cos(a)*.102,.245+Math.sin(a)*.102,m.steel);b.rotation.x=-a;}}
+ ph2Cylinder(g,.09,.09,.16,0,.105,-.375,m.rubber,'x',16);
+ // Carry handle with a genuine opening beneath it.
+ for(const x of [-.19,.19])ph2Box(g,.048,.15,.055,x,.65,.14,m.dark);
+ ph2Box(g,.41,.055,.068,0,.745,.14,m.dark);ph2Box(g,.30,.015,.069,0,.775,.14,m.steel);
+ for(const x of [-.18,.18]){ph2Cylinder(g,.092,.092,.038,x,.585,.34,x<0?m.red:m.dark,'y',20);}
+ for(let i=0;i<7;i++)ph2Box(g,.042,.013,.19,-.18+i*.06,.595,.015,m.dark);
+ ph2Cylinder(g,.107,.107,.105,0,.385,-.50,m.dark,'z');ph2Cylinder(g,.085,.085,.14,0,.385,-.535,m.steel,'z');
+ const label=new THREE.Mesh(new THREE.PlaneGeometry(.36,.09),m.label);label.rotation.x=-Math.PI/2;label.position.set(0,.641,-.19);g.add(label);
+ const meter=ph2Box(g,.19,.016,.071,0,.601,.26,m.glass);meter.rotation.x=.12;
+ g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});ph2Art.models.set(gold,g);return g.clone(true);
+}
+function ph2FloorHead(gold=false){const m=ph2Materials(gold),g=new THREE.Group();g.name='Широкая насадка';ph2Box(g,.80,.12,.35,0,.12,0,m.dark);ph2Box(g,.76,.085,.29,0,.19,0,m.shell);ph2Box(g,.69,.035,.20,0,.049,-.017,m.rubber);for(const x of [-.35,.35])ph2Cylinder(g,.065,.065,.048,x,.097,.10,m.rubber,'x',16);ph2Box(g,.18,.04,.11,.23,.248,.065,m.dark);ph2Cylinder(g,.075,.075,.18,0,.26,.065,m.steel,'z',18);return g;}
+function ph2FoundVacuum(g){for(const o of [...g.children])if(!o.isLight)g.remove(o);if(!ph2Art.found){const rig=new THREE.Group(),m=ph2Materials(false);rig.add(ph2Canister(false));
+ const head=ph2FloorHead();head.position.set(.55,0,-.69);rig.add(head);
+ const wand=new THREE.Group();ph2Cylinder(wand,.038,.045,1.25,0,.625,0,m.steel,'y');ph2Cylinder(wand,.052,.052,.07,0,.48,0,m.dark,'y');ph2Cylinder(wand,.050,.052,.26,0,1.33,0,m.dark,'y');wand.rotation.x=-.23;wand.position.set(.55,.23,-.62);rig.add(wand);
+ rig.add(ph2Hose([[0,.385,-.59],[-.34,.61,-.77],[-.57,1.22,-.37],[-.19,1.58,.02],[.54,1.52,-.91]],.054,m.rubber,88,28));
+ rig.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});ph2Art.found=rig;}
+ g.add(ph2Art.found.clone(true));
+}
+function ph2ViewVacuum(g,hand,bag,brush,tube,gold){bag.clear();const m=ph2Materials(gold),body=ph2Canister(gold);body.scale.setScalar(.245);body.rotation.y=-.40;body.position.set(.015,-.015,0);bag.add(body);
+ // Hose lives inside vmBag: the original blower visibility rule hides the whole canister.
+ bag.add(ph2Hose([[.069,.079,-.125],[.17,-.035,-.12],[.39,-.075,.10],[.70,.022,.40],[.85,.17,.50]],.0145,m.rubber,96,36));
+ const handle=ph2Hose([[0,.014,.015],[.007,.054,.054],[.004,.078,.094],[0,.039,.145]],.027,m.dark,28,0);hand.add(handle);
+ tube.geometry=ph2CylinderGeometry(.017,.021,.5,24);
+ for(const z of [-.405,-.385,-.155])ph2Cylinder(hand,.023,.023,.013,0,0,z,m.steel,'z',18);
+ const head=brush.children[0];head.geometry=phRounded(.208,.039,.095);head.material=m.shell;
+ const bristles=brush.children[1];bristles.geometry=phRounded(.194,.023,.043);bristles.position.z=-.01;
+ const mouth=brush.userData.зев;mouth.geometry=phRounded(.14,.015,.026);mouth.position.set(0,-.019,-.029);
+ for(const x of [-.098,.098])ph2Cylinder(brush,.017,.017,.013,x,-.002,.025,m.rubber,'x',12);
+ ph2Box(brush,.049,.012,.028,.05,.026,.012,m.dark);
+ g.userData.ph2Vacuum={body,hose:bag.children[1],head};
+}
+function ph2ReflectionEnvironment(){if(ph2Art.env)return;const faces=[];for(let k=0;k<6;k++){const c=document.createElement('canvas');c.width=c.height=256;const x=c.getContext('2d'),grad=x.createLinearGradient(0,0,0,256);grad.addColorStop(0,'#62768d');grad.addColorStop(.5,'#243746');grad.addColorStop(1,'#121921');x.fillStyle=grad;x.fillRect(0,0,256,256);if(k!==3){x.fillStyle=k%2?'#aabfd0':'#cfc4a6';x.fillRect(24,38,20,119);x.fillRect(49,38,9,119);}faces.push(c);}const cube=new THREE.CubeTexture(faces);cube.colorSpace=THREE.SRGBColorSpace;cube.needsUpdate=true;const pmrem=new THREE.PMREMGenerator(renderer);ph2Art.env=pmrem.fromCubemap(cube);scene.environment=ph2Art.env.texture;cube.dispose();pmrem.dispose();}
+function ph2PoolUV(){const shared=phRepeat(phMosaic,1,1);for(const o of world.children){if(!o.isMesh||o.geometry.type!=='BoxGeometry'||Array.isArray(o.material)||o.material.map?.image!==phMosaic.image||o.position.x<10||o.position.x>33||o.position.z>-24||o.position.z<-49.1)continue;const geo=o.geometry.clone(),p=geo.attributes.position,n=geo.attributes.normal,uv=geo.attributes.uv;for(let i=0;i<p.count;i++){const nx=Math.abs(n.getX(i)),ny=Math.abs(n.getY(i));uv.setXY(i,(nx>.5?p.getZ(i):p.getX(i))/2,(ny>.5?p.getZ(i):p.getY(i))/2);}o.geometry=geo;o.material=o.material.clone();o.material.map=shared;o.material.bumpMap=shared;o.material.needsUpdate=true;}}
+function ph2Polish(){ph2ReflectionEnvironment();ph2PoolUV();}
 
 
 const walls = [];                       // {x1,z1,x2,z2}
@@ -3862,6 +3926,7 @@ function addPickup(kind, x, z, label) {
     ring.rotation.x = Math.PI/2; ring.position.y = 0.46; g.add(ring);
     const gl = new THREE.PointLight(0x38bdf8, 2.2, 6); gl.position.y = 0.7; g.add(gl);
   }
+  if(kind==='vac')phVisual(()=>ph2FoundVacuum(g));
   g.position.set(x, kind === 'blower' ? 0.5 : kind === 'spectre' ? 1.25 : 1.15, z);
   world.add(g);
   const p = { kind, x, z, label, mesh: g, taken: false };
@@ -5481,6 +5546,7 @@ buildAirFlow();                                     // 🌬 видимый по�
 M.leaf.map=phVisual(()=>phRepeat(phGrass,2,2)); M.leaf.color.setHex(0xb8d2a0);
 M.wood.roughness=.62; M.metal.roughness=.27;
 buildGround(); buildGarden(); buildMansionShell(); buildInterior(); phVisual(()=>phBuildManorArt());
+phVisual(()=>ph2Polish());
 
 let last = performance.now();
 function loop(now) {
