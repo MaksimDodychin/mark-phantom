@@ -144,7 +144,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#1b2138">
-  <script>window.__APP_VER = "8ed7e0fcff";</script>
+  <script>window.__APP_VER = "068db64254";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -1498,8 +1498,49 @@ function startLockers() {
   hint('Подойди к шкафчику вплотную — дверца распахнётся');
   updateHud();
 }
+/* ⚠️ Та же болезнь, что у спорта (Марк 12.09): `startPoolPump`, `startLockers`,
+   `spawnPoolBoss` и `startSo1/So2` звались ТОЛЬКО из выбора этапа — по порядку эти этапы
+   были недостижимы. Ниже — честные переходы: нырок → насос → раздевалка → Малыш. */
+/* 🏰 ТРОПА К ДОМУ ПРИЗРАКОВЫХ (Марк 12.09: «хочу проходить и по порядку»).
+   Раньше в соседний особняк можно было попасть ТОЛЬКО через выбор этапа. Теперь после
+   освобождения Малыша в саду загорается портал-арка — шагнул в неё и ты во дворе соседей. */
+let тропаСоседей = null;
+function открытьТропуКСоседям() {
+  if (тропаСоседей) { тропаСоседей.mesh.visible = true; return; }
+  const g = new THREE.Group();
+  const арка = new THREE.Mesh(new THREE.TorusGeometry(2.1, 0.26, 10, 26, Math.PI),
+    new THREE.MeshStandardMaterial({ color:0x8b5cf6, emissive:0x6d28d9, emissiveIntensity:1.3 }));
+  арка.position.y = 0.1; g.add(арка);
+  const плёнка = new THREE.Mesh(new THREE.CircleGeometry(2.0, 24),
+    new THREE.MeshBasicMaterial({ color:0xc4b5fd, transparent:true, opacity:0.3, side:THREE.DoubleSide }));
+  плёнка.position.y = 1.05; g.add(плёнка);
+  const L = new THREE.PointLight(0xa78bfa, 14, 26); L.position.set(0, 2.2, 0); g.add(L);
+  g.position.set(-26, 0, 22); g.rotation.y = 0.4; world.add(g);
+  тропаСоседей = { x:-26, z:22, mesh:g, плёнка, свет:L };
+  bigMsg('🏰 В САДУ ОТКРЫЛСЯ ПРОХОД!\nтуда — к дому Призраковых', 4, '#c4b5fd');
+  say('💙 Дом', 'Видишь фиолетовую арку в саду? Она ведёт к соседям — к дому Призраковых. Иди туда.', 10);
+}
+function updateТропа(dt) {
+  const т = тропаСоседей; if (!т || !player || !т.mesh.visible) return;
+  т.плёнка.rotation.z += dt * 0.8;
+  т.свет.intensity = 12 + Math.sin(time*3) * 4;
+  if (Math.hypot(т.x-player.x, т.z-player.z) > 2.6) return;
+  т.mesh.visible = false;
+  границы = { x1:SOX-33, x2:SOX+33, z1:SOZ-28, z2:SOZ+28 };
+  player.x = SOX; player.z = SOZ+16; player.yaw = 0; player.dive = 0;
+  Snd.ghostMoan();
+  bigMsg('🏰 ДОМ ПРИЗРАКОВЫХ', 3, '#c4b5fd');
+  if (!save.stages.so1) setTimeout(() => { if (state === 'play') startSo1(); }, 1200);
+  else setTimeout(() => { if (state === 'play' && !save.stages.so2) startSo2(); }, 1200);
+  updateHud();
+}
 function updatePoolExtras(dt) {
   if (!player) return;
+  // 🤿 собрал синие кристаллы и пришёл в крыло бассейна → вода мутнеет, начинается «Насос»
+  if (save.stages.basseyn && !save.stages.nasos && poolPump && !мутно && !poolPump.включён &&
+      player.x > POOL.x1-3 && player.x < POOL.x2+4 && player.z > POOL.z1-4 && player.z < POOL.z2+3) {
+    startPoolPump();
+  }
   // 🔧 насос: подошёл к вентилю — фильтр запускается, вода светлеет
   if (poolPump) {
     poolPump.вентиль.rotation.z += poolPump.включён ? dt*3 : 0;
@@ -1515,6 +1556,7 @@ function updatePoolExtras(dt) {
       Snd.catchWin();
       bigMsg('💧 ФИЛЬТР ЗАРАБОТАЛ!\nвода снова чистая', 3.4, '#7dd3fc');
       task = '🏊 Вода чистая — дальше раздевалка'; updateHud();
+      if (!save.stages.razdev) setTimeout(() => { if (state === 'play') startLockers(); }, 2800);
     }
   }
   // 🧺 шкафчики: подошёл — дверца распахивается, вылетает призрак
@@ -1536,6 +1578,7 @@ function updatePoolExtras(dt) {
     save.stages.razdev = true; saveNow();
     bigMsg('🧺 РАЗДЕВАЛКА ЧИСТА!', 3, '#86efac');
     task = '🧺 Раздевалка пройдена!'; updateHud();
+    if (!save.stages.noch) setTimeout(() => { if (state === 'play') spawnPoolBoss(); }, 2800);
   } else if (занятые.length) {
     const поймано = занятые.filter(l => l.призрак && !l.призрак.alive).length;
     if (поймано && !save.stages.razdev) task = '🧺 Шкафчики: поймано ' + поймано + '/' + занятые.length;
@@ -1611,6 +1654,25 @@ function buildSosedHouse() {
 /* 🏚 ИНТЕРЬЕР дома Призраковых: холл → две комнаты → трофейный зал.
    Красивее поместья: тёмное дерево, ковры, свечи, портреты. */
 const SO_IN = { x1:SOX-17, x2:SOX+17, z1:SOZ-52, z2:SOZ-9 };   // внутренние границы
+/* 🚪 Светящаяся арка над проходом: перемычка, тёплый свет и ковровая дорожка на полу —
+   чтобы проход было видно ИЗДАЛЕКА и не казалось, что дальше стена. */
+function проём(x, z, ширина, поворот) {
+  const М = new THREE.MeshStandardMaterial({ color:0x6b4a2a, roughness:0.6, metalness:0.3,
+    emissive:0x3a2410, emissiveIntensity:0.5 });
+  const косякW = 0.36;
+  for (const s2 of [-1, 1]) {
+    const k = new THREE.Mesh(new THREE.BoxGeometry(косякW, 5.2, 0.6), М);
+    k.position.set(x + Math.cos(поворот)*s2*(ширина/2), 2.6, z + Math.sin(поворот)*s2*(ширина/2));
+    k.rotation.y = -поворот; world.add(k);
+  }
+  const верх = new THREE.Mesh(new THREE.BoxGeometry(ширина + косякW, 0.4, 0.6), М);
+  верх.position.set(x, 5.2, z); верх.rotation.y = -поворот; world.add(верх);
+  const L = new THREE.PointLight(0xffc46b, 7, 16); L.position.set(x, 4.4, z); world.add(L);
+  const дорожка = new THREE.Mesh(new THREE.PlaneGeometry(ширина - 0.6, 7),
+    new THREE.MeshStandardMaterial({ color:0x7a2230, roughness:0.95 }));
+  дорожка.rotation.x = -Math.PI/2; дорожка.rotation.z = -поворот;
+  дорожка.position.set(x, 0.05, z); world.add(дорожка);
+}
 function buildSosedInterior() {
   const пол = new THREE.Mesh(new THREE.BoxGeometry(34, 0.3, 43),
     new THREE.MeshStandardMaterial({ map:texWood, roughness:0.75 }));
@@ -1623,13 +1685,21 @@ function buildSosedInterior() {
   wallSeg(SO_IN.x1, SO_IN.z1, SO_IN.x2, SO_IN.z1, 7.6);
   wallSeg(SO_IN.x1, SO_IN.z1, SO_IN.x1, SO_IN.z2, 7.6);
   wallSeg(SO_IN.x2, SO_IN.z1, SO_IN.x2, SO_IN.z2, 7.6);
-  // перегородка холл|комнаты (два прохода) и стенка между комнатами
-  wallSeg(SO_IN.x1, SOZ-24, SOX-9, SOZ-24, 7.6);
-  wallSeg(SOX-4, SOZ-24, SOX+4, SOZ-24, 7.6);
-  wallSeg(SOX+9, SOZ-24, SO_IN.x2, SOZ-24, 7.6);
-  wallSeg(SOX, SOZ-24, SOX, SOZ-38, 7.6);
+  /* ⚠️ Жалоба Марка 12.09: «идёшь исследовать комнаты — а там стена, не пройти».
+     Проходы были, но УЗКИЕ (по 5 м) и по краям, а по центру стояла глухая стена —
+     идёшь прямо и упираешься. Теперь проёмы ШИРЕ, над каждым горит арка со светом,
+     на полу — ковровая дорожка, и между самими комнатами появилась дверь. */
+  wallSeg(SO_IN.x1, SOZ-24, SOX-11, SOZ-24, 7.6);
+  wallSeg(SOX-3, SOZ-24, SOX+3, SOZ-24, 7.6);
+  wallSeg(SOX+11, SOZ-24, SO_IN.x2, SOZ-24, 7.6);
+  проём(SOX-7, SOZ-24, 8, 0);                       // левый вход в комнаты
+  проём(SOX+7, SOZ-24, 8, 0);                       // правый вход в комнаты
+  // ⚠️ перегородка между комнатами — только у холла. Дальше комнаты СОЕДИНЕНЫ, и оттуда
+  //    же открывается вид на ворота трофейного зала: ни стены, ни столба на пути.
+  wallSeg(SOX, SOZ-24, SOX, SOZ-31, 7.6);
   // стена трофейного зала с широкими воротами
-  wallWithDoor(SO_IN.x1, SOZ-38, SO_IN.x2, SOZ-38, 17, 5.0, 7.6);
+  wallWithDoor(SO_IN.x1, SOZ-38, SO_IN.x2, SOZ-38, 17, 7.0, 7.6);
+  проём(SOX, SOZ-38, 7, 0);                         // ворота трофейного зала — видно издалека
   // 🕯 свечи-канделябры и общий свет
   for (const [cx, cz] of [[SOX-12,SOZ-14],[SOX+12,SOZ-14],[SOX-11,SOZ-31],[SOX+11,SOZ-31],[SOX,SOZ-46]]) {
     const ст = new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.14,3.2,8), M.metal);
@@ -2110,6 +2180,7 @@ function updateSo(dt) {
     bigMsg('🔑 КЛЮЧ У ТЕБЯ!\nдверь Призраковых открыта', 3.4, '#fde68a');
     say('💙 Дом', 'Слышишь? Дверь скрипнула. Дальше — комнаты, трофейный зал… и Морф.', 8);
     task = '🏚 Заходи в дом Призраковых'; updateHud();
+    if (!save.stages.so2) setTimeout(() => { if (state === 'play') startSo2(); }, 2500);
   }
 }
 function updatePoolBoss(dt) {
@@ -2118,6 +2189,7 @@ function updatePoolBoss(dt) {
   if (!gh.alive) {                                      // пойман → этап пройден
     poolBoss = null;
     save.stages.noch = true; saveNow();
+    открытьТропуКСоседям();
     bigMsg('🧒 МАЛЫШ ОСВОБОЖДЁН!\nбассейн пройден', 3.4, '#93e6ff');
     say('💙 Дом', 'Спасибо тебе. Его душа наконец свободна. А Морф… с ним ты встретишься в доме Призраковых.', 8);
     task = '🏊 Бассейн пройден!'; updateHud();
@@ -2911,7 +2983,10 @@ function updateSport(dt) {
   }
   // босс Спортсмен побеждён?
   if (sp.stage === 'sp4' && sp.boss && !sp.done && !sp.boss.alive) {
-    sp.done = true; save.stages.sp4 = true; saveNow();
+    sp.done = true; save.stages.sp4 = true;
+    // 🗄 подстраховка: босс обязан попасть в хранилище, как бы его ни одолели (жалоба Марка 12.09)
+    if (!(save.seen.sportsman | 0)) save.seen.sportsman = 1;
+    saveNow();
     bigMsg('🏆 СПОРТСМЕН ПОБЕЖДЁН!\nспортучасток пройден!', 3.4, '#fde047');
     task = '🏆 Спортучасток пройден!'; updateHud();
   }
@@ -3743,6 +3818,7 @@ function startGame(stageId) {
   hasSpectre = false; spectreOn = false; if (spectreLight) spectreLight.intensity = 0;
   очиститьСледы();
   vanished = []; mouseHunt = 0; laundryOpen = false;
+  if (тропаСоседей) тропаСоседей.mesh.visible = !!save.stages.noch;
   if (ручка) { world.remove(ручка.mesh); ручка = null; }
   if (ворота) { ворота.открыты = false; ворота.mesh.visible = false; }
   if (zevaka) { world.remove(zevaka.mesh); zevaka = null; }
@@ -4039,10 +4115,12 @@ function renderDiff() {
 }
 function renderVault() {
   const g = $('vaultGrid'); g.innerHTML = '';
-  const kinds = Object.keys(GHOSTS).concat(['spider', 'zevaka']);   // 🕷🌺 боссы тоже жильцы
+  // 🕷🌺👤 боссы тоже жильцы хранилища; у непойманных — пустая ячейка с 🔒 (просьба Марка 12.09)
+  const kinds = Object.keys(GHOSTS).concat(['spider', 'zevaka', 'morf']);
   let открыто = 0;
   kinds.forEach(k => {
-    const info = GHOSTS[k] || { name: k === 'spider' ? 'Мохноног' : 'Зевака', hp:'—' };
+    const info = GHOSTS[k] ||
+      { name: k === 'spider' ? 'Мохноног' : k === 'zevaka' ? 'Зевака' : 'МОРФ', hp:'—' };
     const добавка = GHOST_INFO[k] || { emoji:'👻', text:'' };
     const n = save.seen[k] | 0;
     if (n) открыто++;
@@ -5330,7 +5408,7 @@ function loop(now) {
       ((keys.KeyW||keys.KeyS||keys.KeyA||keys.KeyD) ? 1 : 0)); updateGhosts(dt); updateMice(dt);
     updateProps(dt); updateShots(dt); updatePuffs(dt); updateCrystals(dt); updateRain(dt); updatePool(dt); updateAirFlow(dt);
     updateKeyItem(dt); checkPoolDone(); updateSpectre(dt); updateСледы(dt); updateLibrary(dt);
-    updateVanished(dt); updateMouseHunt(dt); updateChute(dt); updateSpider(dt); updateGreenhouse(dt); updateGates(dt); updateCellarExit(dt); updateZevaka(dt); updateOrx(dt); updateSport(dt); updateSportDoor(dt); updateSo(dt); updatePoolExtras(dt);
+    updateVanished(dt); updateMouseHunt(dt); updateChute(dt); updateSpider(dt); updateGreenhouse(dt); updateGates(dt); updateCellarExit(dt); updateZevaka(dt); updateOrx(dt); updateSport(dt); updateSportDoor(dt); updateSo(dt); updatePoolExtras(dt); updateТропа(dt);
     if (msgT > 0) { msgT -= dt; if (msgT <= 0) $('bigMsg').style.opacity = 0; }
     if (subT > 0) { subT -= dt; if (subT <= 0) $('subs').classList.add('hidden'); }
   }
@@ -5576,6 +5654,7 @@ window.__dbg = {
     shots.push({ mesh:p.mesh, prop:p, x, y, z, vx:0, vy, vz:0, t:0 });
     return sp.stage;
   },
+  killLockerGhosts(){ let n = 0; lockers.forEach(l => { if (l.призрак && l.призрак.alive) { catchGhost(l.призрак); n++; } }); return n; },
   pos(){ return { x:+player.x.toFixed(1), z:+player.z.toFixed(1) }; },
   tp(x, z){ player.x = x; player.z = z; return this.pos(); },
   hoopInfo(){ return spArena.hoop ? { x:spArena.hoop.x, y:spArena.hoop.y, z:spArena.hoop.z,
