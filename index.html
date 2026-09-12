@@ -144,7 +144,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#1b2138">
-  <script>window.__APP_VER = "9395e5d2b6";</script>
+  <script>window.__APP_VER = "8c5e6e28f1";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -456,7 +456,7 @@ function tubeSize()  { return 1 + up('tube'); }
 
 /* ── сцена ─────────────────────────────────────────────────────────── */
 const renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(devicePixelRatio, matchMedia("(pointer:coarse)").matches ? 1.35 : 1.75));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -556,6 +556,7 @@ function buildViewModel() {
   шланг.position.set(0.05, 0.03, 0); шланг.rotation.set(1.4, 0.2, -0.7); bag.add(шланг);
   bag.position.set(-0.52, -0.44, -0.86);
   g.add(bag); vmBag = bag;
+  phVisual(()=>phViewDetails(g, рука, bag, brush, хром, синий, резина));
 
   g.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
   g.visible = false;
@@ -673,6 +674,88 @@ const M = {
 };
 
 /* ── стены и столкновения ──────────────────────────────────────────── */
+/* Astra: the old geometry, doors and object groups remain the gameplay authority.
+   Artwork uses its own deterministic noise; it never consumes gameplay Math.random. */
+let phVisualSeed=78123;
+function phVisual(fn){const previous=Math.random;Math.random=()=>{phVisualSeed=(Math.imul(phVisualSeed,1664525)+1013904223)>>>0;return phVisualSeed/4294967296;};try{return fn();}finally{Math.random=previous;}}
+const phOriginalRandom=Math.random;Math.random=()=>{phVisualSeed=(Math.imul(phVisualSeed,1664525)+1013904223)>>>0;return phVisualSeed/4294967296;};
+const phArt={geometry:new Map(),maps:new Map(),ornaments:null};
+const phNoise=(x,y)=>{const a=Math.sin(x*127.1+y*311.7)*43758.5453;return a-Math.floor(a);};
+function phTex(w,h,draw){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());t.wrapS=t.wrapT=THREE.RepeatWrapping;return t;}
+function phTile(base,accent,tile=64){return phTex(512,512,(g,w,h)=>{g.fillStyle='#3e454b';g.fillRect(0,0,w,h);for(let y=0;y<h;y+=tile)for(let x=0;x<w;x+=tile){g.fillStyle=(x/tile+y/tile)%2?base:accent;g.fillRect(x+2,y+2,tile-3,tile-3);g.strokeStyle='#ffffff18';g.strokeRect(x+3,y+3,tile-6,tile-6);for(let k=0;k<11;k++){g.fillStyle=`rgba(8,15,22,${phNoise(x+k,y)*.1})`;g.fillRect(x+phNoise(k,x)*tile,y+phNoise(k,y)*tile,2,2);}}});}
+const phWood=phTex(512,512,(g,w,h)=>{g.fillStyle='#70543c';g.fillRect(0,0,w,h);for(let y=0;y<512;y+=64){for(let x=-((y/64)%2)*256;x<512;x+=256){g.fillStyle=`hsl(${28+phNoise(x,y)*5} 28% ${37+phNoise(x+3,y)*9}%)`;g.fillRect(x+1,y+1,254,62);g.fillStyle='#dbc9a023';g.fillRect(x+2,y+2,253,1);g.fillStyle='#19181355';g.fillRect(x+2,y+61,253,2);for(let k=0;k<18;k++){g.strokeStyle=`rgba(39,22,14,${.07+phNoise(k,y)*.12})`;g.beginPath();for(let q=0;q<=256;q+=16){const yy=y+5+k*3+Math.sin(q*.037+k)*1.1;if(!q)g.moveTo(x+q,yy);else g.lineTo(x+q,yy);}g.stroke();}}}});
+const phBrick=phTex(512,512,(g,w,h)=>{g.fillStyle='#4c5058';g.fillRect(0,0,w,h);for(let y=0;y<512;y+=64)for(let x=-((y/64)%2)*64;x<512;x+=128){const l=41+phNoise(x,y)*12;g.fillStyle=`hsl(224 8% ${l}%)`;g.fillRect(x+3,y+3,122,58);g.fillStyle='#eef3ef25';g.fillRect(x+4,y+4,119,2);for(let k=0;k<60;k++){g.fillStyle=phNoise(k,x)>.5?'#ffffff09':'#11192310';g.fillRect(x+4+phNoise(k,y)*115,y+5+phNoise(y,k)*50,3,2);}}});
+const phWall=phTex(512,512,(g,w,h)=>{g.fillStyle='#83877d';g.fillRect(0,0,w,h);for(let x=0;x<w;x+=64){g.fillStyle='#343f4423';g.fillRect(x+2,0,4,h);for(let y=0;y<h;y+=96){g.save();g.translate(x+32,y+48);g.strokeStyle='#3c505945';g.lineWidth=2;g.beginPath();g.moveTo(0,-27);g.bezierCurveTo(25,-11,25,10,0,29);g.bezierCurveTo(-25,10,-25,-11,0,-27);g.stroke();g.beginPath();g.moveTo(0,-20);g.lineTo(0,20);g.stroke();g.restore();}}for(let k=0;k<1400;k++){g.fillStyle='#202b3010';g.fillRect(phNoise(k,1)*w,phNoise(k,2)*h,2,4);}});
+const phGrass=phTex(512,512,(g,w,h)=>{g.fillStyle='#41614a';g.fillRect(0,0,w,h);for(let i=0;i<13000;i++){let x=phNoise(i,0)*w,y=phNoise(i,1)*h;g.strokeStyle=`hsla(${92+phNoise(i,3)*38},25%,${22+phNoise(i,4)*22}%,.7)`;g.beginPath();g.moveTo(x,y);g.lineTo(x+phNoise(i,5)*5-2,y-3-phNoise(i,6)*9);g.stroke();}});
+const phBookSpine=phTex(128,256,(g,w,h)=>{g.fillStyle='#d8ccb5';g.fillRect(0,0,w,h);g.fillStyle='#f1d68c';for(const y of [25,33,213,221])g.fillRect(0,y,w,3);g.fillStyle='#f7e1a3';g.fillRect(37,61,54,2);g.fillRect(40,67,48,2);g.fillRect(44,73,40,2);g.fillStyle='#080e1526';g.fillRect(0,0,7,h);});
+const phMosaic=phTile('#96b9c3','#759cac',32),phKitchen=phTile('#cbc4af','#61797b',64),phSlate=phTile('#747e86','#67727b',128);
+const phWeave=phTex(128,128,(g,w,h)=>{g.fillStyle='#9e9e9e';g.fillRect(0,0,w,h);for(let i=0;i<128;i+=4){g.fillStyle='#c3c3c3';g.fillRect(i,0,1,h);g.fillStyle='#777';g.fillRect(0,i,w,1);}});phWeave.colorSpace=THREE.NoColorSpace;phWeave.repeat.set(4,4);
+function phRepeat(t,x=1,y=1){const k=t.uuid+':'+x.toFixed(2)+':'+y.toFixed(2);if(!phArt.maps.has(k)){const c=t.clone();c.repeat.set(x,y);c.needsUpdate=true;phArt.maps.set(k,c);}return phArt.maps.get(k);}
+function phMat(color=0xffffff,roughness=.65,metalness=.02,map=null){return new THREE.MeshStandardMaterial({color,roughness,metalness,map,envMapIntensity:.18});}
+const phBronze=phMat(0xb19a68,.34,.72),phTrim=phMat(0x6d767f,.72,.05),phTimber=phMat(0x968879,.6,.04,phWood),phIron=phMat(0x303d48,.42,.66);
+function phSurface(map,rx=1,ry=1,rough=.8){const t=phRepeat(map,rx,ry);return new THREE.MeshStandardMaterial({map:t,roughness:rough,bumpMap:t,bumpScale:map===phWood?.025:.035,envMapIntensity:.14});}
+function phRounded(w,h,d){const r=Math.min(w,h,d)*.09,key=[w,h,d].join(',');if(phArt.geometry.has(key))return phArt.geometry.get(key);const geo=new THREE.BoxGeometry(w,h,d,3,3,3),p=geo.attributes.position,v=new THREE.Vector3(),q=new THREE.Vector3();for(let i=0;i<p.count;i++){v.fromBufferAttribute(p,i);q.set(THREE.MathUtils.clamp(v.x,-w/2+r,w/2-r),THREE.MathUtils.clamp(v.y,-h/2+r,h/2-r),THREE.MathUtils.clamp(v.z,-d/2+r,d/2-r));v.sub(q).normalize().multiplyScalar(r).add(q);p.setXYZ(i,v.x,v.y,v.z);}geo.computeVertexNormals();phArt.geometry.set(key,geo);return geo;}
+function phBox(g,w,h,d,x,y,z,m=phTrim){const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=false;o.receiveShadow=true;g.add(o);return o;}
+function phLabel(text,sub='',color='#d8caa0',back='#25323b'){return phTex(1024,256,(g,w,h)=>{g.fillStyle=back;g.fillRect(0,0,w,h);g.strokeStyle=color;g.lineWidth=3;g.strokeRect(14,14,w-28,h-28);g.lineWidth=1;g.strokeRect(22,22,w-44,h-44);g.fillStyle=color;g.textAlign='center';g.font='600 62px Georgia';g.fillText(text,w/2,127);g.font='22px Georgia';g.fillText(sub,w/2,187);for(const x of [43,w-43]){g.beginPath();g.arc(x,h/2,5,0,Math.PI*2);g.fill();}});}
+function phSign(g,title,sub,x,y,z,w=4,h=1,ry=0){const o=new THREE.Mesh(new THREE.PlaneGeometry(w,h),phSurface(phLabel(title,sub),1,1,.62));o.position.set(x,y,z);o.rotation.y=ry;g.add(o);return o;}
+const phRug=phTex(512,512,(g,w,h)=>{g.fillStyle='#4b2438';g.fillRect(0,0,w,h);for(let i=0;i<6;i++){g.strokeStyle=i%2?'#927354':'#251f36';g.lineWidth=i%2?3:7;g.strokeRect(14+i*7,14+i*7,w-28-i*14,h-28-i*14);}for(let y=88;y<460;y+=84)for(let x=88;x<460;x+=84){g.save();g.translate(x,y);g.rotate(Math.PI/4);g.fillStyle='#94704b';g.fillRect(-12,-12,24,24);g.fillStyle='#342336';g.fillRect(-7,-7,14,14);g.restore();}for(let i=0;i<512;i+=3){g.fillStyle='#ffffff08';g.fillRect(i,0,1,h);}});
+function phFloor(g,map,x,z,w,d,y=.065,rough=.78){const p=new THREE.Mesh(new THREE.PlaneGeometry(w,d),phSurface(map,map===phRug?1:w/5,map===phRug?1:d/5,rough));p.rotation.x=-Math.PI/2;p.position.set(x,y,z);p.receiveShadow=true;g.add(p);return p;}
+/* Merge only new non-interactive architecture and bookcase ornaments. */
+function phBatch(g){const buckets=new Map();for(const m of [...g.children]){if(!m.isMesh||Array.isArray(m.material)||m.material.transparent)continue;const mat=m.material,k=[mat.color.getHex(),mat.map?.uuid,mat.bumpMap?.uuid,mat.roughness,mat.metalness,mat.emissive?.getHex()].join('/');if(!buckets.has(k))buckets.set(k,[]);buckets.get(k).push(m);}for(const meshes of buckets.values()){if(meshes.length<2)continue;const ps=[],ns=[],us=[];for(const m of meshes){m.updateMatrix();const geo=m.geometry.index?m.geometry.toNonIndexed():m.geometry.clone();geo.applyMatrix4(m.matrix);const p=geo.attributes.position,n=geo.attributes.normal,u=geo.attributes.uv;for(let i=0;i<p.count;i++){ps.push(p.getX(i),p.getY(i),p.getZ(i));ns.push(n.getX(i),n.getY(i),n.getZ(i));us.push(u?u.getX(i):0,u?u.getY(i):0);}geo.dispose();g.remove(m);}const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(ps,3));geo.setAttribute('normal',new THREE.Float32BufferAttribute(ns,3));geo.setAttribute('uv',new THREE.Float32BufferAttribute(us,2));const m=new THREE.Mesh(geo,meshes[0].material);m.castShadow=meshes.some(m=>m.castShadow);m.receiveShadow=true;g.add(m);}}
+function phFurniture(g,mats,label,w,h,d){g.traverse(o=>{if(!o.isMesh)return;const m=o.material;if(m.map===texWood){m.map=phRepeat(phWood,Math.max(.4,w/2),Math.max(.5,h/2));m.bumpMap=m.map;m.bumpScale=.012;m.roughness=.56;}if(m.color?.getHex()===0x3a2a1c){m.color.setHex(0x69513d);m.map=phWood;m.roughness=.65;}if(label==='кресло'){m.bumpMap=phWeave;m.bumpScale=.012;}if(label==='бочка'&&m.metalness<.2){m.map=phRepeat(phWood,2,1);m.color.setHex(0xd4b58d);}if(o.geometry.type==='BoxGeometry'){const p=o.geometry.parameters;o.geometry=phRounded(p.width,p.height,p.depth);}});
+ if(label==='шкаф'||label==='комод'){const mat=mats.find(m=>m.metalness>.5)||phBronze;for(const sx of [-1,1])phBox(g,.028,h*.68,.018,sx*(w/2-.13),h*.54,d/2+.031,mat);}
+ if(label==='картина'){const tex=phPortrait(0),mat=new THREE.MeshStandardMaterial({map:tex,roughness:.92});mats.push(mat);const p=new THREE.Mesh(new THREE.PlaneGeometry(d-.25,h-.25),mat);p.rotation.y=Math.PI/2;p.position.set(.046,h/2,0);g.add(p);}
+ if(label==='плита'){const m=mats.find(m=>m.metalness>.5)||phBronze;for(const x of [-.3,0,.3]){const k=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,.035,12),m);k.rotation.x=Math.PI/2;k.position.set(x,h*.82,d/2+.025);g.add(k);}}
+ return {obj:g,mats};}
+function phPortrait(index){return phTex(384,512,(g,w,h)=>{const bg=g.createRadialGradient(w*.52,h*.38,12,w*.5,h*.45,h*.7);bg.addColorStop(0,['#535463','#535d54','#675854','#4c5267'][index%4]);bg.addColorStop(1,'#161e2b');g.fillStyle=bg;g.fillRect(0,0,w,h);g.fillStyle='#1e283c';g.beginPath();g.ellipse(192,490,138,171,0,0,Math.PI*2);g.fill();g.fillStyle='#b1bbb2';g.beginPath();g.ellipse(192,201,68,95,0,0,Math.PI*2);g.fill();g.fillStyle='#444958';g.beginPath();g.ellipse(192,123,80,34,0,0,Math.PI*2);g.fill();g.fillRect(136,65,110,54);g.fillStyle='#283243';for(const x of [164,217]){g.beginPath();g.ellipse(x,197,8,12,0,0,Math.PI*2);g.fill();}g.strokeStyle='#737d77';g.lineWidth=5;g.beginPath();g.moveTo(174,251);g.quadraticCurveTo(192,258,213,251);g.stroke();g.fillStyle='#d5c69f';g.beginPath();g.moveTo(156,295);g.lineTo(190,320);g.lineTo(230,294);g.lineTo(203,349);g.lineTo(179,349);g.closePath();g.fill();g.strokeStyle='#cfb782';g.lineWidth=8;g.strokeRect(10,10,w-20,h-20);for(let i=0;i<2100;i++){g.fillStyle='#050c1610';g.fillRect(phNoise(i,1)*w,phNoise(i,4)*h,1,6);}});}
+function phWallArt(g,x,z,len,h,rotation){const q=new THREE.Group();q.position.set(x,0,z);q.rotation.y=rotation;g.add(q);for(const sign of [-1,1]){phBox(q,len,.22,.085,0,.18,sign*.22,phTimber);phBox(q,len,.13,.09,0,1.5,sign*.22,phBronze);phBox(q,len,.24,.14,0,Math.min(h-.17,5.75),sign*.24,phTrim);for(let a=-len/2+.25;a<len/2;a+=2.3)phBox(q,.08,1.12,.065,a,.82,sign*.215,phTimber);}phBatch(q);}
+Math.random=phOriginalRandom;
+function phRoomRestyle(){const roots=[...world.children];for(const o of roots){if(!o.isMesh||!o.geometry.parameters)continue;const p=o.geometry.parameters,x=o.position.x,z=o.position.z,m=o.material;
+ if(m===M.wall&&o.geometry.type==='BoxGeometry'&&p.height>2){const outside=(Math.abs(x)>=31.5&&z>-49)||(z>7.7)||(x<-130);const poolZone=(Math.abs(x-11)<.12||x>12.3)&&x<33&&z<-24&&z>-49.1,greenZone=z<-49;const map=poolZone?phMosaic:greenZone?phBrick:outside?phBrick:phWall;o.material=phSurface(map,p.width/4,p.height/3,poolZone?.42:.86);if(greenZone)o.material.color.setHex(z<-79?0x83957e:0xaaa990);if(p.width>2&&p.height>=5&&o.position.y-p.height/2<.05&&x>-40&&x<40&&z>-50)phWallArt(phArt.ornaments,x,z,p.width,p.height,o.rotation.y);}
+ else if(m===M.wall&&o.geometry.type==='PlaneGeometry'){o.material=phMat(0x4e5258,.95,0);}
+ else if(m===M.wood){o.material=phSurface(phWood,(p.width||6)/5,(p.height||p.depth||6)/5,.68);}
+ else if(m===M.grass){o.material=phSurface(phGrass,(p.width||6)/4,(p.height||6)/4,.98);}
+ else if(m===M.stone){if(o.geometry.type==='BoxGeometry'&&p.height<.4)o.position.y+=.012;o.material=phSurface(phSlate,(p.width||p.radiusTop||4)/5,(p.depth||p.height||4)/5,.72);}
+ else if(m?.isMeshStandardMaterial&&!m.map){const c=m.color.getHex();if(c===0x6b1d2a&&p.width===20&&p.depth===10)o.position.y=.027;if([0xbfe6f5,0x2596be].includes(c)){o.material=phSurface(phMosaic,(p.width||4)/2,(p.depth||p.height||4)/2,.3);}if(c===0x555a68)o.material=phSurface(phBrick,Math.max(2,(p.width||p.radiusTop||6)/4),Math.max(2,p.height/3));if(c===0x2f7d34)o.material=phSurface(phGrass,13,8.5,.98);if(c===0x2c3a2a)o.material=phSurface(phGrass,17,15,.98);if(c===0x1a2418||c===0x2c3a24){o.material=phSurface(phSlate,5,5,.92);o.material.color.setHex(0x7d9879);o.position.y+=.014;}}
+ }
+}
+function phBuildManorArt(){const g=new THREE.Group();g.name='Phantom architecture artwork';phArt.ornaments=g;world.add(g);phRoomRestyle();
+ // Facade: old openings and roof silhouette, carved stone jambs and a family crest.
+ for(const y of [2.4,6])for(const x of [-22,-15,-8,0,8,15,22]){if(y===2.4&&x===0)continue;for(const s of [-1,1])phBox(g,.16,2.92,.25,x+s*1.13,y,8.21,phTrim);phBox(g,2.55,.21,.42,x,y-1.45,8.25,phTrim);phBox(g,2.48,.2,.25,x,y+1.45,8.2,phTrim);phBox(g,.1,2.6,.04,x,y,8.31,phIron);}
+ for(const x of [-31,-25,-11,11,25,31]){phBox(g,.62,7.6,.48,x,3.8,8.12,phTrim);phBox(g,.95,.32,.67,x,7.3,8.2,phTrim);}phBox(g,64,.28,.45,0,7.73,8.2,phTrim);
+ phSign(g,'ФАНТОМОВЫ','СЕМЕЙНОЕ ПОМЕСТЬЕ',0,5.05,8.35,5,1.18);
+ for(const x of [-1.74,1.74])phBox(g,.24,4.7,.5,x,2.35,8.03,phBronze);phBox(g,3.7,.3,.55,0,4.68,8.03,phBronze);
+ for(const z of [-1,-11,-21]){phBox(g,19.8,.26,.26,0,5.82,z,phTimber);}
+ phFloor(g,phRug,0,-8,5.3,26,.045,.95);phFloor(g,phKitchen,20,-8,19.7,31.6,.051,.38);phFloor(g,phSlate,-21,-6,21.3,27,.049,.77);phFloor(g,phRug,0,-37,5.6,20,.06,.96);
+ phSign(g,'БИБЛИОТЕКА','СОБРАНИЕ ФАНТОМОВЫХ',0,4.6,-23.45,4.8,.95);phSign(g,'ПРАЧЕЧНАЯ','',-20,4.3,-11.79,5,.9);
+ // A real chandelier around the old ring and its original light.
+ for(let i=0;i<8;i++){const a=i*Math.PI/4,x=Math.cos(a)*1.3,z=-6+Math.sin(a)*1.3;const rod=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,1.4,8),phBronze);rod.position.set(x,5.28,z);g.add(rod);const cup=new THREE.Mesh(new THREE.CylinderGeometry(.14,.20,.15,10),phBronze);cup.position.set(x,4.76,z);g.add(cup);const wax=new THREE.Mesh(new THREE.CylinderGeometry(.075,.085,.42,10),phMat(0xe1d6ac,.86));wax.position.set(x,5.03,z);g.add(wax);const flame=new THREE.Mesh(new THREE.SphereGeometry(.065,8,6),new THREE.MeshBasicMaterial({color:0xffd49b}));flame.scale.y=2.1;flame.position.set(x,5.29,z);g.add(flame);}
+ // Portraits and panels stay flat against the walls, outside all door openings.
+ for(const [x,z,ry,k] of [[-9.77,-16,Math.PI/2,0],[9.77,-16,-Math.PI/2,1],[-9.77,2,Math.PI/2,2],[9.77,2,-Math.PI/2,3]]){const p=new THREE.Mesh(new THREE.PlaneGeometry(2.1,2.8),phSurface(phPortrait(k),1,1,.91));p.position.set(x,3.45,z);p.rotation.y=ry;g.add(p);}
+ // Pool colonnade and glasshouse ironwork, all high above playable ground.
+ for(const z of [-28,-35,-42,-48])for(const x of [11.3,30.7]){phBox(g,.38,7,.36,x,3.5,z,phTrim);phBox(g,.76,.24,.70,x,6.7,z,phTrim);}for(const z of [-28,-38,-48])phBox(g,19.4,.21,.22,21,7.65,z,phTrim);
+ phSign(g,'БАССЕЙН','ПОМЕСТЬЕ ФАНТОМОВЫХ',20,5.05,-48.73,6,1.1);phSign(g,'ОРАНЖЕРЕЯ','',21,5.10,-78.74,5,1);
+ for(let z=-50;z>-79;z-=3.7){phBox(g,21.9,.14,.12,21,7.38,z,phIron);for(const x of [10.42,31.58])phBox(g,.13,6.6,.13,x,3.9,z,phIron);}phBox(g,.13,.17,29.4,21,7.38,-64.5,phIron);
+ for(const x of [10.5,31.5])for(let z=-81;z>=-98;z-=4.3){phBox(g,.24,5.7,.24,x,2.85,z,phIron);}for(const z of [-81,-87,-93,-98])phBox(g,21,.22,.22,21,6.1,z,phIron);
+ // Night conservatory has aged terracotta edging and fern silhouettes, away from the paths.
+ for(const [x,z] of [[10.8,-82],[31.1,-89],[30.6,-97],[-13.3,-81],[-13.3,-97]])for(let k=0;k<5;k++){const l=new THREE.Mesh(new THREE.SphereGeometry(.32,8,6),phMat(0x547554,.87));l.scale.set(.4,2.2,.15);l.position.set(x+Math.sin(k)*.24,.5+Math.cos(k)*.1,z);l.rotation.z=(k-2)*.4;g.add(l);}
+ // Laundry dials and steel rims; original drum and interaction positions unchanged.
+ for(let i=0;i<3;i++){const x=-26+i*3.2,r=new THREE.Mesh(new THREE.TorusGeometry(.64,.065,8,24),phBronze);r.position.set(x,1.15,-16.28);g.add(r);for(const xx of [-.54,.45]){const dial=new THREE.Mesh(new THREE.CylinderGeometry(.11,.11,.09,14),phIron);dial.rotation.x=Math.PI/2;dial.position.set(x+xx,1.78,-16.35);g.add(dial);}phSign(g,String(i+1).padStart(2,'0'),'',x,.3,-16.365,.48,.19);}
+ // Neighboring mansion: warm plum rugs, taller limestone piers and framed ancestral portraits.
+ for(const x of [-176.7,-143.3])for(const z of [-14,-22,-30,-37,-45,-51])phBox(g,.32,7.2,.38,x,3.6,z,phTrim);
+ for(const z of [-23.8,-37.8,-51.7])phBox(g,33,.22,.25,-160,7.13,z,phTimber);
+ phFloor(g,phRug,-160,-18,7,12,.068,.98);phFloor(g,phRug,-160,-45,19.7,9.7,.061,.98);
+ for(let i=0;i<4;i++){const x=i%2?-143.4:-176.6,z=i<2?-16:-31,ry=i%2?-Math.PI/2:Math.PI/2;const p=new THREE.Mesh(new THREE.PlaneGeometry(2.6,3.7),phSurface(phPortrait(i),1,1,.9));p.position.set(x,4,z);p.rotation.y=ry;g.add(p);}
+ phSign(g,'ПРИЗРАКОВЫ','',-160,8.2,-8.69,9,1.4);phSign(g,'ТРОФЕЙНЫЙ ЗАЛ','',-160,6.35,-37.64,6,1);
+ for(let r=0;r<3;r++)for(let c=-3;c<=3;c++){if(c===0&&!r)continue;const x=-160+c*4.6,y=4+r*5;for(const s of [-1,1])phBox(g,.16,2.7,.35,x+s*.95,y,-8.78,phTrim);phBox(g,2.2,.18,.45,x,y-1.37,-8.78,phTrim);phBox(g,.1,2.4,.06,x,y,-8.72,phIron);}
+ phBatch(g); M.wall.map=phRepeat(phBrick,2,4); M.stone.map=phRepeat(phSlate,8,8); M.wood.map=phWood;
+}
+function phViewDetails(g,hand,bag,brush,chrome,blue,rubber){const collar=new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.032,16),chrome);collar.rotation.x=Math.PI/2;collar.position.set(0,0,-.41);hand.add(collar);for(let i=0;i<6;i++){const grip=new THREE.Mesh(new THREE.TorusGeometry(.028,.003,5,14),rubber);grip.position.set(0,0,-.025+i*.018);hand.add(grip);}for(const x of [-.06,.06]){const screw=new THREE.Mesh(new THREE.SphereGeometry(.004,6,6),chrome);screw.position.set(x,.018,0);brush.add(screw);}if(!phArt.vacuumPlate)phArt.vacuumPlate=phSurface(phLabel('ВИХРЬ','3000'),1,1,.45);const plate=new THREE.Mesh(new THREE.PlaneGeometry(.069,.03),phArt.vacuumPlate);plate.position.set(0,.013,.052);bag.add(plate);g.traverse(o=>{if(o.isMesh&&o.geometry.type==='BoxGeometry'){const p=o.geometry.parameters;o.geometry=phRounded(p.width,p.height,p.depth);}});}
+function phSpectral(mat){mat.onBeforeCompile=shader=>{shader.uniforms.phantomRim={value:mat.color};shader.fragmentShader='uniform vec3 phantomRim;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>','float phantomEdge=pow(1.0-abs(dot(normalize(vViewPosition),normal)),2.3);outgoingLight+=phantomRim*phantomEdge*.5;\n#include <opaque_fragment>');};mat.customProgramCacheKey=()=> 'phantom-rim-1';return mat;}
+function phGhostDetails(g,orb){const seen=new Set();g.traverse(o=>{if(o.isMesh&&o.material.isMeshStandardMaterial&&o.material.transparent&&!seen.has(o.material)){seen.add(o.material);phSpectral(o.material);}});const mat=new THREE.MeshBasicMaterial({color:0xe6faff,transparent:true,opacity:.65,depthWrite:false});for(const s of [-1,1]){const p=new THREE.Mesh(new THREE.SphereGeometry(orb?.025:.033,8,6),mat);p.position.set(s*(orb?.15:.2)-.026,orb?.53:.825,orb?.444:.49);g.add(p);}return g;}
+function phCellarArt(){if(phArt.cellarGroup?.parent)return;const g=new THREE.Group();g.name='Cellar architectural artwork';phArt.cellarGroup=g;for(let i=0;i<13;i++){const a=i*Math.PI*2/13,x=-200+Math.cos(a)*21,z=-200+Math.sin(a)*21;const m=phBox(g,.7,12,.7,x,6,z,phTrim);m.rotation.y=-a;const c=phBox(g,1.2,.28,1.2,x,11.8,z,phBronze);c.rotation.y=-a;}phBatch(g);world.add(g);}
+
+
 const walls = [];                       // {x1,z1,x2,z2}
 function wallSeg(x1, z1, x2, z2, h = 6, mat = M.wall, thick = 0.34) {
   const dx = x2-x1, dz = z2-z1, len = Math.hypot(dx, dz);
@@ -3155,6 +3238,7 @@ function enterCellar() {
   л.position.set(база, 0, база + 17); world.add(л);
   cellar.лестница = { x:база, z:база + 17 };
   spawnSpider(база, база - 6);
+  phVisual(()=>phCellarArt());
   task = '🕷 Победить Мохнонога';
   save.stages.araxno = true; saveNow();
   Snd.music(true, 'boss');
@@ -3183,10 +3267,10 @@ function updateCellarExit(dt) {
 let spider = null;
 function spawnSpider(x, z) {
   const g = new THREE.Group();
-  const шерсть = new THREE.MeshStandardMaterial({ color:0x2a2028, roughness:0.95 });
-  const тело = new THREE.Mesh(new THREE.SphereGeometry(2.2, 16, 12), шерсть);
+  const шерсть = new THREE.MeshStandardMaterial({ color:0x40323d, roughness:0.94, bumpMap:phWeave, bumpScale:0.09 });
+  const тело = new THREE.Mesh(new THREE.SphereGeometry(2.2, 24, 18), шерсть);
   тело.scale.set(1, 0.85, 1.25); тело.position.y = 2.4; g.add(тело);
-  const голова = new THREE.Mesh(new THREE.SphereGeometry(1.3, 14, 10), шерсть);
+  const голова = new THREE.Mesh(new THREE.SphereGeometry(1.3, 20, 16), шерсть);
   голова.position.set(0, 2.2, 2.6); g.add(голова);
   const глазМ = new THREE.MeshStandardMaterial({ color:0x140004, emissive:0xff2244, emissiveIntensity:2.4 });
   for (let i = 0; i < 4; i++) {
@@ -3273,8 +3357,8 @@ function buildLibrary() {
   потолок.rotation.x = Math.PI/2; потолок.position.set(0, 6, -36.5); world.add(потолок);
   wallSeg(-12, -24, -12, -49, 8); wallSeg(12, -24, 12, -49, 8); wallSeg(-12, -49, 12, -49, 8);
   // стеллажи вдоль стен, набитые книгами
-  const книжн = new THREE.MeshStandardMaterial({ color:0x4a3320, roughness:0.85 });
-  const цвета = [0x9b2c2c, 0x1f6f4a, 0x1e429f, 0x92400e, 0x4c1d95, 0x0f766e];
+  const книжн = new THREE.MeshStandardMaterial({ color:0xd3bb9e, map:phWood, roughness:0.68 });
+  const цвета = [0xa86c72, 0x66947d, 0x7886b4, 0xa98353, 0x977baa, 0x679e9e];
   const стеллаж = (x, z, пов) => {
     const g = new THREE.Group();
     const кор = new THREE.Mesh(new THREE.BoxGeometry(3.6, 4.4, 0.55), книжн);
@@ -3286,12 +3370,12 @@ function buildLibrary() {
         if (Math.random() < 0.12) continue;                 // где-то книг не хватает
         const h2 = 0.55 + Math.random()*0.25;
         const кн = new THREE.Mesh(new THREE.BoxGeometry(0.2 + Math.random()*0.1, h2, 0.42),
-          new THREE.MeshStandardMaterial({ color:цвета[(k+п)%6], roughness:0.9 }));
+          new THREE.MeshStandardMaterial({ color:цвета[(k+п)%6], roughness:0.76, map:phBookSpine, bumpMap:phWeave, bumpScale:0.006 }));
         кн.position.set(-1.6 + k*0.32, 0.7 + п*1.05 + h2/2, 0.12);
         кн.rotation.z = Math.random() < 0.1 ? 0.25 : 0; g.add(кн);
       }
     }
-    g.position.set(x, 0, z); g.rotation.y = пов; world.add(g);
+    g.position.set(x, 0, z); g.rotation.y = пов; phVisual(()=>phBatch(g)); world.add(g);
     walls.push({ x1:x - Math.cos(пов)*1.8, z1:z + Math.sin(пов)*1.8,
                  x2:x + Math.cos(пов)*1.8, z2:z - Math.sin(пов)*1.8 });
   };
@@ -3372,7 +3456,7 @@ function makeFurniture(label, w, h, d) {
       ст.position.set(rnd(-0.06, 0.06), h*1.28, rnd(-0.06, 0.06));
       ст.rotation.set(rnd(-0.2, 0.2), 0, rnd(-0.25, 0.25)); g.add(ст);
     }
-    return { obj:g, mats };
+    return phVisual(()=>phFurniture(g, mats, label, w, h, d));
   }
   if (label === 'комод' || label === 'шкаф') {
     const шкаф = label === 'шкаф';
@@ -3396,7 +3480,7 @@ function makeFurniture(label, w, h, d) {
       const ручка = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.014, 6, 14), латунь());
       ручка.rotation.x = Math.PI/2; ручка.position.set(0, yy, d/2 + 0.05); g.add(ручка);
     }
-    return { obj:g, mats };
+    return phVisual(()=>phFurniture(g, mats, label, w, h, d));
   }
   if (label === 'стул') {
     const сид = 0.52, ножH = сид;
@@ -3405,7 +3489,7 @@ function makeFurniture(label, w, h, d) {
     короб(w, h - сид, 0.06, 0, сид + (h-сид)/2, -d/2 + 0.05, дерево());   // спинка
     for (let i = 0; i < 2; i++)
       короб(w - 0.22, 0.05, 0.07, 0, сид + 0.18 + i*0.22, -d/2 + 0.09, тёмн());
-    return { obj:g, mats };
+    return phVisual(()=>phFurniture(g, mats, label, w, h, d));
   }
   if (label === 'кресло') {
     const т = ткань(0x6b4f3a);
@@ -3413,7 +3497,7 @@ function makeFurniture(label, w, h, d) {
     короб(w, h*0.8, 0.22, 0, 0.42 + h*0.4, -d/2 + 0.11, т);               // спинка
     for (const ox of [-1, 1]) короб(0.18, 0.34, d - 0.14, ox*(w/2 - 0.09), 0.60, 0.05, т);
     ножки(w - 0.1, d - 0.1, 0.28, тёмн());
-    return { obj:g, mats };
+    return phVisual(()=>phFurniture(g, mats, label, w, h, d));
   }
   if (label === 'стол' || label === 'верстак') {
     короб(w, 0.10, d, 0, h - 0.05, 0, дерево());                          // столешница
@@ -3424,7 +3508,7 @@ function makeFurniture(label, w, h, d) {
         M2(new THREE.MeshStandardMaterial({ color:0x7a8291, roughness:0.4, metalness:0.7 })));
       тиски.position.set(w/2 - 0.35, h + 0.11, 0); g.add(тиски);
     }
-    return { obj:g, mats };
+    return phVisual(()=>phFurniture(g, mats, label, w, h, d));
   }
   if (label === 'бочка') {
     const дуги = M2(new THREE.MeshStandardMaterial({ color:0x8b5a2b, roughness:0.85 }));
@@ -3437,7 +3521,7 @@ function makeFurniture(label, w, h, d) {
         M2(new THREE.MeshStandardMaterial({ color:0x5b6470, roughness:0.4, metalness:0.7 })));
       о.rotation.x = Math.PI/2; о.position.y = yy; g.add(о);
     }
-    return { obj:g, mats };
+    return phVisual(()=>phFurniture(g, mats, label, w, h, d));
   }
   if (label === 'ящик') {
     короб(w, h, d, 0, h/2, 0, дерево());
@@ -3445,13 +3529,13 @@ function makeFurniture(label, w, h, d) {
       [w+0.02, 0.06, 0.06, 0, 0.05, d/2], [w+0.02, 0.06, 0.06, 0, h-0.05, d/2],
       [0.06, h, 0.06, -w/2, h/2, d/2], [0.06, h, 0.06, w/2, h/2, d/2]])
       короб(sx, sy, sz, xx, yy, zz, тёмн());
-    return { obj:g, mats };
+    return phVisual(()=>phFurniture(g, mats, label, w, h, d));
   }
   if (label === 'картина') {
     короб(0.06, h, d, 0, h/2, 0, тёмн());
     короб(0.02, h - 0.22, d - 0.22, 0.03, h/2, 0,
       M2(new THREE.MeshStandardMaterial({ color:0x4b5d3a, roughness:0.95 })));
-    return { obj:g, mats };
+    return phVisual(()=>phFurniture(g, mats, label, w, h, d));
   }
   if (label === 'плита') {
     короб(w, h, d, 0, h/2, 0, M2(new THREE.MeshStandardMaterial({ color:0x8d949e,
@@ -3462,7 +3546,7 @@ function makeFurniture(label, w, h, d) {
       к.rotation.x = Math.PI/2; к.position.set(ox*w*0.25, h + 0.06, oz*d*0.22); g.add(к);
     }
     короб(w - 0.2, h*0.45, 0.04, 0, h*0.35, d/2 + 0.02, тёмн());
-    return { obj:g, mats };
+    return phVisual(()=>phFurniture(g, mats, label, w, h, d));
   }
   if (label === 'кастрюля') {
     const мет = M2(new THREE.MeshStandardMaterial({ color:0xb9c2cc, roughness:0.3, metalness:0.8 }));
@@ -3474,17 +3558,17 @@ function makeFurniture(label, w, h, d) {
       const р = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.02, 6, 12), мет);
       р.position.set(ox*w/2, h*0.7, 0); р.rotation.y = Math.PI/2; g.add(р);
     }
-    return { obj:g, mats };
+    return phVisual(()=>phFurniture(g, mats, label, w, h, d));
   }
   if (label === 'шина') {
     const т = new THREE.Mesh(new THREE.TorusGeometry(w/2, w/5, 10, 20),
       M2(new THREE.MeshStandardMaterial({ color:0x22262d, roughness:0.95 })));
     т.rotation.x = Math.PI/2; т.position.y = w/5; т.castShadow = true; g.add(т);
-    return { obj:g, mats };
+    return phVisual(()=>phFurniture(g, mats, label, w, h, d));
   }
   const b2 = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), дерево());
   b2.castShadow = b2.receiveShadow = true; g.add(b2);
-  return { obj:g, mats };
+  return phVisual(()=>phFurniture(g, mats, label, w, h, d));
 }
 
 function addProp(label, x, z, w, h, d, big, searchable) {
@@ -3662,7 +3746,7 @@ function makeGhostMesh(color, шар, хмурый) {
     }
     const halo = new THREE.PointLight(color, 2.0, 6); halo.position.y = 0.45; g.add(halo);
     g.userData.pivotY = 0.42;
-    return g;
+    return phVisual(()=>phGhostDetails(g, шар));
   }
   // ⚠️ Форму делаем ОДНИМ телом вращения (Lathe), а не «шар + конус»:
   // из шара с конусом получался колпак с шариками, а не привидение.
@@ -3671,7 +3755,7 @@ function makeGhostMesh(color, шар, хмурый) {
   const prof = [[0.00,1.10],[0.19,1.07],[0.34,0.98],[0.45,0.84],[0.52,0.66],
                 [0.55,0.46],[0.57,0.26],[0.60,0.08],[0.62,0.00]];
   const body = new THREE.Mesh(
-    new THREE.LatheGeometry(prof.map(p => new THREE.Vector2(p[0], p[1])), 22), mat);
+    new THREE.LatheGeometry(prof.map(p => new THREE.Vector2(p[0], p[1])), 32), mat);
   g.add(body);
   for (let i = 0; i < 6; i++) {                       // волнистый подол
     const t = new THREE.Mesh(new THREE.SphereGeometry(0.16, 9, 7), mat);
@@ -3687,7 +3771,7 @@ function makeGhostMesh(color, шар, хмурый) {
   mouth.position.set(0, 0.52, 0.47); mouth.scale.set(0.9, 1.4, 0.6); g.add(mouth);
   const halo = new THREE.PointLight(color, 2.2, 7); halo.position.y = 0.6; g.add(halo);
   g.userData.pivotY = 0.55;                            // «середина» тела для прицела
-  return g;
+  return phVisual(()=>phGhostDetails(g, шар));
 }
 let ghostSeq = 0;
 function spawnGhost(kind, x, z) {
@@ -5394,7 +5478,9 @@ loadAll();                                          // 💾 три файла и
 buildViewModel();                                   // 🖐 труба со щёткой в руках
 buildRain();                                        // 🌧 дождь и гроза
 buildAirFlow();                                     // 🌬 видимый поток воздуха
-buildGround(); buildGarden(); buildMansionShell(); buildInterior();
+M.leaf.map=phVisual(()=>phRepeat(phGrass,2,2)); M.leaf.color.setHex(0xb8d2a0);
+M.wood.roughness=.62; M.metal.roughness=.27;
+buildGround(); buildGarden(); buildMansionShell(); buildInterior(); phVisual(()=>phBuildManorArt());
 
 let last = performance.now();
 function loop(now) {
