@@ -144,7 +144,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#1b2138">
-  <script>window.__APP_VER = "a327fdb23d";</script>
+  <script>window.__APP_VER = "d8b2b8eabb";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -441,7 +441,8 @@ function saveNow() {
   save.used = true;
   try { localStorage.setItem(SAVE_KEY, JSON.stringify({ slots, last: slotIdx })); } catch (_) {}
 }
-function useSlot(i) { slotIdx = clamp(i, 0, 2); save = slots[slotIdx]; saveNow(); }
+function useSlot(i) { slotIdx = clamp(i, 0, 2); save = slots[slotIdx]; saveNow();
+  if (typeof обновитьКнопкуИграть === 'function') обновитьКнопкуИграть(); }
 function diff() { return DIFFS[save.diff] || DIFFS.normal; }
 function up(id) { return save.up[id] | 0; }
 
@@ -4165,7 +4166,24 @@ $('updBtn').onclick = () => { if (window.__checkUpdate) window.__checkUpdate();
   else bigMsg('обновление работает только в приложении', 2, '#cbd5e1'); };
 $('stagesBack').onclick = () => showScreen('menu');
 
-$('playBtn').onclick = () => startGame();
+/* ▶️ Вопрос Марка 12.09: «зачем кнопка ИГРАТЬ, если этапы и так можно выбирать?»
+   Ответ: этапы — это переигровка, а ИГРАТЬ ведёт по СЮЖЕТУ. Но вести его с самого начала
+   каждый раз незачем — теперь кнопка ПРОДОЛЖАЕТ с первого непройденного этапа
+   и прямо на себе пишет, куда поведёт. Начать всё заново можно через 🎬 ЭТАПЫ. */
+function следующийЭтап() {
+  for (const s2 of STAGES) if (!save.stages[s2.id]) return s2.id;
+  return null;                                        // всё пройдено — гуляем сначала
+}
+function обновитьКнопкуИграть() {
+  const b = $('playBtn'); if (!b) return;
+  const id = следующийЭтап();
+  const первый = STAGES[0] && STAGES[0].id;
+  if (!id || id === первый) { b.textContent = 'ИГРАТЬ'; b.dataset.go = ''; return; }
+  const назв = (STAGES.find(s2 => s2.id === id) || {}).name || '';
+  b.textContent = '▶️ ПРОДОЛЖИТЬ · ' + назв.replace(/^\S+\s/, '');
+  b.dataset.go = id;
+}
+$('playBtn').onclick = () => startGame($('playBtn').dataset.go || undefined);
 $('helpBtn').onclick = () => showScreen('help');
 $('helpBack').onclick = () => showScreen('menu');
 $('resumeBtn').onclick = () => togglePause();
@@ -4193,7 +4211,7 @@ function togglePause() {
 function toMenu() {
   state = 'menu'; Snd.music(false); Snd.suckOff();
   $('hud').classList.add('hidden'); $('cross').classList.add('hidden');
-  showScreen('menu'); hint(null);
+  showScreen('menu'); hint(null); обновитьКнопкуИграть();
 }
 function gameOver(title, text, icon) {
   state = 'over'; mode = null; Snd.suckOff(); Snd.music(false);
@@ -5290,6 +5308,7 @@ function updatePuffs(dt) {
 
 /* ── главный цикл ──────────────────────────────────────────────────── */
 loadAll();                                          // 💾 три файла из памяти браузера
+обновитьКнопкуИграть();                             // ▶️ кнопка сразу говорит, куда поведёт
 buildViewModel();                                   // 🖐 труба со щёткой в руках
 buildRain();                                        // 🌧 дождь и гроза
 buildAirFlow();                                     // 🌬 видимый поток воздуха
