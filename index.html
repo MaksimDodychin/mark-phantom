@@ -144,7 +144,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#1b2138">
-  <script>window.__APP_VER = "d8b2b8eabb";</script>
+  <script>window.__APP_VER = "8ed7e0fcff";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -2889,7 +2889,11 @@ let спортВыход = false;
 function updateSport(dt) {
   if (!sp || !player) return;
   // 🚪 пройден босс → западный край площадки уводит обратно в оранжерею
-  if ((спортВыход || save.stages.sp4) && player.x < SPX-23 && Math.abs(player.z-SPZ) < 6) {
+  // ⚠️ БАГ (Марк 12.09): условие было только «x < SPX-23», а спортучасток стоит на x=150 —
+  //    значит оно ловило ВЕСЬ остальной мир. Идёшь по двору Призраковых (x=-160) мимо z≈0 —
+  //    и тебя выбрасывало в оранжерею. Теперь выход ловится ТОЛЬКО у западного края арены.
+  if ((спортВыход || save.stages.sp4) && sp && sp.stage &&
+      player.x < SPX-23 && player.x > SPX-30 && Math.abs(player.z-SPZ) < 6) {
     спортВыход = false;
     границы = ГРАНИЦЫ_ДОМА;
     player.x = 21; player.z = -70; player.yaw = 0; player.dive = 0;
@@ -5572,6 +5576,8 @@ window.__dbg = {
     shots.push({ mesh:p.mesh, prop:p, x, y, z, vx:0, vy, vz:0, t:0 });
     return sp.stage;
   },
+  pos(){ return { x:+player.x.toFixed(1), z:+player.z.toFixed(1) }; },
+  tp(x, z){ player.x = x; player.z = z; return this.pos(); },
   hoopInfo(){ return spArena.hoop ? { x:spArena.hoop.x, y:spArena.hoop.y, z:spArena.hoop.z,
     r:spArena.hoop.r, последний:spArena.hoop.последний || null } : null; },
   get следы(){ return { всего:следы.length, видно:следы.filter(с => с.mesh.visible).length }; },
