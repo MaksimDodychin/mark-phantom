@@ -153,7 +153,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#1b2138">
-  <script>window.__APP_VER = "5d10ccb16d";</script>
+  <script>window.__APP_VER = "c6cd97d868";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -622,6 +622,7 @@ function updateViewModel(dt, шаг) {
   const база = -0.53;
   const цель = сосёт ? база - 0.05 : дует ? база + 0.04 : база;
   vmBrush.position.z += (цель - vmBrush.position.z) * Math.min(1, dt*9);
+  if(viewModel.userData.ph2Vacuum?.neck){vmBrush.updateMatrix();const конец=new THREE.Vector3(0,.012,.035).applyMatrix4(vmBrush.matrix);vacuumFitTube(viewModel.userData.ph2Vacuum.neck,[0,0,-.47],конец.toArray());}
   const зев = vmBrush.userData.зев;
   зев.material.emissive.setHex(дует ? 0xfbbf24 : 0x38bdf8);
   зев.material.emissiveIntensity += (((сосёт||дует) ? 2.4 : 0) - зев.material.emissiveIntensity) * Math.min(1, dt*10);
@@ -811,9 +812,14 @@ function ph2FoundVacuum(g){for(const o of [...g.children])if(!o.isLight)g.remove
  rig.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});ph2Art.found=rig;}
  g.add(ph2Art.found.clone(true));
 }
+// Жёсткая труба задаётся точками крепления: поворот и длина не расходятся с ручкой/щёткой.
+function vacuumFitTube(mesh,a,b){const A=new THREE.Vector3(...a),B=new THREE.Vector3(...b),d=B.clone().sub(A);mesh.position.copy(A.add(B).multiplyScalar(.5));mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.clone().normalize());mesh.scale.y=(d.length()+.035)/mesh.geometry.parameters.height;return mesh;}
+function vacuumJoint(g,a,b,r,material){const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,1,14),material);vacuumFitTube(m,a,b);m.castShadow=true;g.add(m);return m;}
+
 function ph2ViewVacuum(g,hand,bag,brush,tube,gold){bag.clear();const m=ph2Materials(gold),body=ph2Canister(gold);body.scale.setScalar(.245);body.rotation.y=-.40;body.position.set(.015,-.015,0);bag.add(body);
  // Hose lives inside vmBag: the original blower visibility rule hides the whole canister.
- bag.add(ph2Hose([[.069,.079,-.125],[.17,-.035,-.12],[.39,-.075,.10],[.70,.022,.40],[.85,.17,.50]],.0145,m.rubber,96,36));
+ hand.updateMatrix();bag.updateMatrix();const стыкШланга=new THREE.Vector3(0,.039,.145).applyMatrix4(hand.matrix).applyMatrix4(bag.matrix.clone().invert());
+ bag.add(ph2Hose([[.069,.079,-.125],[.17,-.035,-.12],[.39,-.075,.10],[.70,.022,.40],стыкШланга.toArray()],.0145,m.rubber,96,36));
  const handle=ph2Hose([[0,.014,.015],[.007,.054,.054],[.004,.078,.094],[0,.039,.145]],.027,m.dark,28,0);hand.add(handle);
  tube.geometry=ph2CylinderGeometry(.017,.021,.5,24);
  for(const z of [-.405,-.385,-.155])ph2Cylinder(hand,.023,.023,.013,0,0,z,m.steel,'z',18);
@@ -822,7 +828,7 @@ function ph2ViewVacuum(g,hand,bag,brush,tube,gold){bag.clear();const m=ph2Materi
  const mouth=brush.userData.зев;mouth.geometry=phRounded(.14,.015,.026);mouth.position.set(0,-.019,-.029);
  for(const x of [-.098,.098])ph2Cylinder(brush,.017,.017,.013,x,-.002,.025,m.rubber,'x',12);
  ph2Box(brush,.049,.012,.028,.05,.026,.012,m.dark);
- g.userData.ph2Vacuum={body,hose:bag.children[1],head};
+ const neck=vacuumJoint(hand,[0,0,-.47],[0,-.012,-.53],.024,m.steel);g.userData.ph2Vacuum={body,hose:bag.children[1],head,neck};
 }
 function ph2ReflectionEnvironment(){if(ph2Art.env)return;const faces=[];for(let k=0;k<6;k++){const c=document.createElement('canvas');c.width=c.height=256;const x=c.getContext('2d'),grad=x.createLinearGradient(0,0,0,256);grad.addColorStop(0,'#62768d');grad.addColorStop(.5,'#243746');grad.addColorStop(1,'#121921');x.fillStyle=grad;x.fillRect(0,0,256,256);if(k!==3){x.fillStyle=k%2?'#aabfd0':'#cfc4a6';x.fillRect(24,38,20,119);x.fillRect(49,38,9,119);}faces.push(c);}const cube=new THREE.CubeTexture(faces);cube.colorSpace=THREE.SRGBColorSpace;cube.needsUpdate=true;const pmrem=new THREE.PMREMGenerator(renderer);ph2Art.env=pmrem.fromCubemap(cube);scene.environment=ph2Art.env.texture;cube.dispose();pmrem.dispose();}
 function ph2PoolUV(){const shared=phRepeat(phMosaic,1,1);for(const o of world.children){if(!o.isMesh||o.geometry.type!=='BoxGeometry'||Array.isArray(o.material)||o.material.map?.image!==phMosaic.image||o.position.x<10||o.position.x>33||o.position.z>-24||o.position.z<-49.1)continue;const geo=o.geometry.clone(),p=geo.attributes.position,n=geo.attributes.normal,uv=geo.attributes.uv;for(let i=0;i<p.count;i++){const nx=Math.abs(n.getX(i)),ny=Math.abs(n.getY(i));uv.setXY(i,(nx>.5?p.getZ(i):p.getX(i))/2,(ny>.5?p.getZ(i):p.getY(i))/2);}o.geometry=geo;o.material=o.material.clone();o.material.map=shared;o.material.bumpMap=shared;o.material.needsUpdate=true;}}
@@ -7271,6 +7277,8 @@ window.__dbg = {
         const зр = new Т.Mesh(new Т.SphereGeometry(0.045, 10, 8), мт(0x111111, 0.3)); зр.position.set(s*0.15, 0.5, 0.51); тело.add(зр); }
       const шл = new Т.Mesh(new Т.TorusGeometry(0.3, 0.06, 8, 20, Math.PI*1.1), мт(0x374151, 0.5)); шл.position.set(0, 0.62, -0.2); шл.rotation.y = Math.PI/2; тело.add(шл);
       const щ = new Т.Mesh(new Т.BoxGeometry(0.5, 0.08, 0.16), мт(0x1f2937, 0.5)); щ.position.set(0, 0.06, 0.5); тело.add(щ);
+      const aКреп=new Т.Vector3(0,.25,.38),bКреп=new Т.Vector3(0,.09,.50),dКреп=bКреп.clone().sub(aКреп);
+      const муфта=new Т.Mesh(new Т.CylinderGeometry(.075,.075,dКреп.length()+.04,12),мт(0x374151,.5));муфта.position.copy(aКреп.add(bКреп).multiplyScalar(.5));муфта.quaternion.setFromUnitVectors(new Т.Vector3(0,1,0),dКреп.normalize());тело.add(муфта);
       for (const [x, z] of [[-0.36, 0.25], [0.36, 0.25], [-0.36, -0.25], [0.36, -0.25]]) { const кол = new Т.Mesh(new Т.CylinderGeometry(0.1, 0.1, 0.08, 14), мт(0x111111, 0.7)); кол.rotation.z = Math.PI/2; кол.position.set(x, 0.1, z); тело.add(кол); u.ноги.push(кол); }
       u.голова = купол; u.высота = 1.25; u.верх = 0.95;
     } else {
