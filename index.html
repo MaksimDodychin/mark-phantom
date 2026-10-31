@@ -131,6 +131,15 @@
     #hearts { font-size:16px; }
     #chargeWrap { bottom:74px; } #chargeName { bottom:92px; }
   }
+  .vault-model-btn{margin-top:10px;font-size:12px;padding:9px 13px;min-width:0;width:100%}
+  .vault3d{position:fixed;inset:0;z-index:20000;background:#050916eb;display:flex;align-items:center;justify-content:center;padding:14px;box-sizing:border-box;overscroll-behavior:contain}
+  .vault3d-card{position:relative;width:min(760px,96vw);max-height:94dvh;overflow:auto;border:1px solid #7195bc77;border-radius:22px;padding:18px;background:linear-gradient(155deg,#202c43,#0c1425);box-shadow:0 24px 80px #000a;box-sizing:border-box;color:#eef5ff}
+  .vault3d-card h2{margin:0 50px 6px 0;font-size:24px}.vault3d-close{position:absolute;right:14px;top:14px;min-width:38px;padding:7px}
+  .vault3d-stage{height:min(390px,46vh);min-height:190px;width:100%;background:radial-gradient(ellipse at 50% 65%,#40587988,#101b2a44 70%);border-radius:15px;margin:10px 0}
+  .vault3d-controls{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;font-size:12px;color:#bdd2e8}.vault3d-controls .btn{min-width:36px;padding:6px 12px}
+  #vault3DInfo{font-size:14px;line-height:1.5;margin:12px 0}#vault3DCount{display:inline-block;font-size:12px;padding:5px 10px;border-radius:20px;background:#8ab4ff1f}
+  @media(max-height:540px){.vault3d-card{padding:12px}.vault3d-card h2{font-size:19px}.vault3d-stage{height:43vh;min-height:150px}#vault3DInfo{font-size:12px}}
+
 </style>
 
   <link rel="manifest" href="manifest.webmanifest">
@@ -144,7 +153,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#1b2138">
-  <script>window.__APP_VER = "b9bb9546ad";</script>
+  <script>window.__APP_VER = "5d10ccb16d";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -2373,7 +2382,7 @@ function updatePoolBoss(dt) {
 /* 🌺 ЗЕВАКА — босс оранжереи (замысел Марка): мухоловка ждёт с открытой пастью,
    бьёт головой сверху — увернись, потом выстрели ей в башку, оттуда вылетит призрак. */
 let zevaka = null;
-function spawnZevaka(x, z) {
+function makeZevakaModel() {
   const g = new THREE.Group();
   const зелень = new THREE.MeshStandardMaterial({ color:0x3f7a2e, roughness:0.9 });
   const пасть = new THREE.MeshStandardMaterial({ color:0xb91c1c, roughness:0.8 });
@@ -2403,6 +2412,10 @@ function spawnZevaka(x, z) {
   дух.position.y = 0.2; голова.add(дух);
   голова.position.y = 6.6; стебель.add(голова);
   g.add(стебель);
+  return { mesh:g, стебель, голова, верх, дух };
+}
+function spawnZevaka(x, z) {
+  const { mesh:g, стебель, голова, верх, дух } = makeZevakaModel();
   g.position.set(x, 0, z); world.add(g);
   addSolidBox(x, z, 4, 4);
   zevaka = { x, z, mesh:g, стебель, голова, верх, дух, hp:3, фаза:'ждёт', t:0, откат:3.2, alive:true };
@@ -3329,7 +3342,7 @@ function updateCellarExit(dt) {
 
 /* 🕷 МОХНОНОГ: пока бодр — неуязвим. Выстрели в него предметом → оглушён → соси. Три раза. */
 let spider = null;
-function spawnSpider(x, z) {
+function makeSpiderModel() {
   const g = new THREE.Group();
   const шерсть = new THREE.MeshStandardMaterial({ color:0x40323d, roughness:0.94, bumpMap:phWeave, bumpScale:0.09 });
   const тело = new THREE.Mesh(new THREE.SphereGeometry(2.2, 24, 18), шерсть);
@@ -3355,6 +3368,10 @@ function spawnSpider(x, z) {
     new THREE.MeshStandardMaterial({ color:0xa855f7, transparent:true, opacity:0.0,
       emissive:0xa855f7, emissiveIntensity:1.8, depthWrite:false }));
   дух.position.set(0, 3.6, 0); g.add(дух);
+  return { mesh:g, ноги, дух };
+}
+function spawnSpider(x, z) {
+  const { mesh:g, ноги, дух } = makeSpiderModel();
   g.position.set(x, 0, z); world.add(g);
   spider = { x, z, mesh:g, ноги, дух, hp:3, оглушён:0, t:0, atk:2, alive:true };
 }
@@ -3865,7 +3882,7 @@ function makeSportsmanMesh(color = 0xf97316) {
   add(new THREE.BoxGeometry(.15,.075,.025),jersey,0,1.9,.283);
   // Майка с номером; гири — чугунные шары с настоящими ручками, не гантели.
   const c=document.createElement('canvas');c.width=128;c.height=128;const ctx=c.getContext('2d');ctx.fillStyle='#1d4ed8';ctx.fillRect(0,0,128,128);ctx.fillStyle='#ffffff';ctx.font='bold 80px sans-serif';ctx.textAlign='center';ctx.fillText('8',64,94);
-  const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;
+  const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;tex.userData.ownedByModel=true;
   add(new THREE.PlaneGeometry(.28,.32),new THREE.MeshStandardMaterial({map:tex}),0,.91,.385);
   const arms=[];
   for(const s of [-1,1]) {
@@ -3880,7 +3897,7 @@ function makeSportsmanMesh(color = 0xf97316) {
     add(new THREE.SphereGeometry(.235,18,14),iron,0,-.34,0,bell).scale.set(1,1.05,1);
     add(new THREE.CylinderGeometry(.16,.2,.07,16),iron,0,-.55,0,bell);
     const label=document.createElement('canvas');label.width=128;label.height=64;const lc=label.getContext('2d');lc.fillStyle='#323a49';lc.fillRect(0,0,128,64);lc.fillStyle='#f8fafc';lc.font='bold 38px sans-serif';lc.textAlign='center';lc.fillText('16',64,47);
-    const lm=new THREE.CanvasTexture(label);lm.colorSpace=THREE.SRGBColorSpace;
+    const lm=new THREE.CanvasTexture(label);lm.colorSpace=THREE.SRGBColorSpace;lm.userData.ownedByModel=true;
     add(new THREE.PlaneGeometry(.24,.12),new THREE.MeshBasicMaterial({map:lm}),0,-.34,.235,bell);
   }
   const glow=new THREE.PointLight(color,2.5,7);glow.position.y=1;g.add(glow);
@@ -4313,6 +4330,60 @@ function renderDiff() {
     g.appendChild(el);
   });
 }
+/* 🗄 3D-хранилище Марка: те же модели, что в самой игре. Один WebGL-контекст на весь просмотр. */
+let vault3D = null;
+function vaultModel(kind) {
+  if (kind === 'sportsman') return makeSportsmanMesh(GHOSTS.sportsman.color);
+  if (kind === 'spider') return makeSpiderModel().mesh;
+  if (kind === 'zevaka') { const q=makeZevakaModel();q.верх.rotation.x=Math.PI+.65;return q.mesh; }
+  const q=GHOSTS[kind];return makeGhostMesh(q?.color ?? 0xd6d8de,q?.шар,q?.хмурый);
+}
+function disposeVaultModel() {
+  if(!vault3D?.model)return;
+  const geos=new Set(),mats=new Set();vault3D.model.traverse(o=>{if(o.isMesh){geos.add(o.geometry);(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>mats.add(m));}});
+  vault3D.root.remove(vault3D.model);geos.forEach(g=>g.dispose());mats.forEach(m=>{if(m.map?.userData.ownedByModel)m.map.dispose();m.dispose();});vault3D.model=null;
+}
+function closeVault3D() {
+  if(!vault3D?.open)return;const v=vault3D;v.open=false;cancelAnimationFrame(v.raf);v.box.classList.add('hidden');disposeVaultModel();v.lastFocus?.focus();
+}
+function createVault3D() {
+  if(vault3D)return vault3D;
+  const box=document.createElement('div');box.id='vault3D';box.className='vault3d hidden';box.setAttribute('role','dialog');box.setAttribute('aria-modal','true');box.setAttribute('aria-labelledby','vault3DName');
+  box.innerHTML='<section class="vault3d-card"><button class="btn small vault3d-close" id="vault3DClose" aria-label="Закрыть 3D-просмотр">✕</button><h2 id="vault3DName"></h2><div class="vault3d-stage" id="vault3DStage"></div><div class="vault3d-controls"><span>Поворачивай пальцем или мышью</span><button class="btn small" id="vault3DMinus" aria-label="Отдалить">−</button><button class="btn small" id="vault3DPlus" aria-label="Приблизить">+</button><button class="btn small" id="vault3DReset">Сбросить вид</button></div><p id="vault3DInfo"></p><div class="pill" id="vault3DCount"></div></section>';
+  document.body.append(box);const r=new THREE.WebGLRenderer({antialias:true,alpha:true});r.setPixelRatio(Math.min(devicePixelRatio,1.5));r.outputColorSpace=THREE.SRGBColorSpace;r.toneMapping=THREE.ACESFilmicToneMapping;r.toneMappingExposure=1;
+  r.domElement.style.cssText='width:100%;height:100%;display:block;touch-action:none;cursor:grab';$('vault3DStage').append(r.domElement);
+  const scene=new THREE.Scene(),root=new THREE.Group();scene.add(root);scene.add(new THREE.HemisphereLight(0xe2efff,0x25314b,2.1));
+  const light=new THREE.DirectionalLight(0xffe4c7,3);light.position.set(3,5,6);scene.add(light);const rim=new THREE.DirectionalLight(0x91bfff,2);rim.position.set(-4,2,-4);scene.add(rim);
+  const camera=new THREE.PerspectiveCamera(38,1,.01,200);
+  const v=vault3D={box,r,scene,root,camera,open:false,model:null,zoom:1,rotation:0,tilt:0,last:0,touch:0,pointers:new Map()};
+  function resize(){if(!v.open)return;const h=$('vault3DStage'),w=h.clientWidth,hh=h.clientHeight;r.setSize(w,hh,false);camera.aspect=w/hh;camera.updateProjectionMatrix();}
+  v.resize=resize;new ResizeObserver(resize).observe($('vault3DStage'));
+  function zoom(f){v.zoom=clamp(v.zoom*f,.55,1.7);v.touch=performance.now();}
+  $('vault3DPlus').onclick=()=>zoom(.85);$('vault3DMinus').onclick=()=>zoom(1.18);$('vault3DReset').onclick=()=>{v.zoom=1;v.rotation=0;v.tilt=0;};$('vault3DClose').onclick=closeVault3D;
+  box.addEventListener('click',e=>{if(e.target===box)closeVault3D();});
+  document.addEventListener('keydown',e=>{if(v.open&&e.code==='Escape'){e.preventDefault();closeVault3D();}});
+  const c=r.domElement;
+  c.addEventListener('pointerdown',e=>{v.pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});c.setPointerCapture(e.pointerId);v.touch=performance.now();c.style.cursor='grabbing';});
+  c.addEventListener('pointermove',e=>{const p=v.pointers.get(e.pointerId);if(!p)return;
+    if(v.pointers.size===2){const other=[...v.pointers.entries()].find(([id])=>id!==e.pointerId)?.[1];if(other){const old=Math.hypot(p.x-other.x,p.y-other.y),next=Math.hypot(e.clientX-other.x,e.clientY-other.y);if(next>3)zoom(old/next);}}
+    else{v.rotation+=(e.clientX-p.x)*.012;v.tilt=clamp(v.tilt+(e.clientY-p.y)*.008,-.55,.55);}v.pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});v.touch=performance.now();
+  });
+  for(const event of ['pointerup','pointercancel','lostpointercapture'])c.addEventListener(event,e=>{v.pointers.delete(e.pointerId);c.style.cursor='grab';});
+  c.addEventListener('wheel',e=>{e.preventDefault();zoom(Math.exp(e.deltaY*.001));},{passive:false});
+  v.frame=now=>{if(!v.open)return;const dt=Math.min(.05,(now-v.last)/1000);v.last=now;if(!v.pointers.size&&now-v.touch>2500)v.rotation+=dt*.28;
+    root.rotation.set(v.tilt,v.rotation,0);camera.position.set(0,v.distance*.04,v.distance*v.zoom);camera.lookAt(0,0,0);r.render(scene,camera);v.raf=requestAnimationFrame(v.frame);
+  };
+  return v;
+}
+function openVault3D(kind) {
+  if(!(save.seen[kind]|0))return false;
+  const v=createVault3D();cancelAnimationFrame(v.raf);disposeVaultModel();v.lastFocus=document.activeElement;v.open=true;v.kind=kind;v.box.classList.remove('hidden');v.zoom=1;v.rotation=0;v.tilt=0;v.pointers.clear();
+  const model=vaultModel(kind);model.updateMatrixWorld(true);const bounds=new THREE.Box3().setFromObject(model),center=bounds.getCenter(new THREE.Vector3()),size=bounds.getSize(new THREE.Vector3());model.position.sub(center);v.root.add(model);v.model=model;
+  const stage=$('vault3DStage'),aspect=Math.max(.6,stage.clientWidth/stage.clientHeight);v.distance=Math.max(size.y,Math.max(size.x,size.z)/aspect)/2/Math.tan(THREE.MathUtils.degToRad(19))*1.18;v.camera.far=Math.max(200,v.distance*5);v.camera.updateProjectionMatrix();
+  const info=GHOSTS[kind],extra=GHOST_INFO[kind]||{};const name=info?.name || ({spider:'Мохноног',zevaka:'Зевака',morf:'Морф'}[kind]);
+  $('vault3DName').textContent=name;$('vault3DInfo').textContent=extra.text||'';$('vault3DCount').textContent='Поймано: '+save.seen[kind]+(info?' · Жизни: '+info.hp:'');v.resize();v.last=performance.now();v.touch=v.last;v.raf=requestAnimationFrame(v.frame);$('vault3DClose').focus();return true;
+}
+
 function renderVault() {
   const g = $('vaultGrid'); g.innerHTML = '';
   // 🕷🌺👤 боссы тоже жильцы хранилища; у непойманных — пустая ячейка с 🔒 (просьба Марка 12.09)
@@ -4330,6 +4401,7 @@ function renderVault() {
       ? '<div class="ghostface">' + добавка.emoji + '</div><h3>' + info.name + '</h3><p>' + добавка.text +
         '</p><span class="pill">поймано ' + n + ' · жизней ' + info.hp + '</span>'
       : '<div class="ghostface">❔</div><h3>???</h3><p>Этого призрака ты ещё не ловил.</p>';
+    if(n){const b=document.createElement('button');b.className='btn small vault-model-btn';b.textContent='👻 Рассмотреть в 3D';b.onclick=()=>openVault3D(k);el.appendChild(b);el.dataset.ghostKind=k;}
     g.appendChild(el);
   });
   // 🟠🟢 те, кого пока нет в игре, но они уже в плане
@@ -5661,6 +5733,7 @@ window.__мкИгра = {
 };
 
 window.__dbg = {
+  get vault3D(){return vault3D ? {open:vault3D.open,kind:vault3D.kind,rotation:vault3D.rotation,zoom:vault3D.zoom,contexts:1}:null;},
   get state(){ return state; },
   get time(){ return +time.toFixed(3); },
   get player(){ return { x:+player.x.toFixed(2), z:+player.z.toFixed(2), yaw:+player.yaw.toFixed(2) }; },
